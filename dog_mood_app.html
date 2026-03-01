@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>강아지 기분 분석기</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #f8fbff, #eef7ff);
+        color: #10233f;
+      }
+      .container {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 36px 20px 56px;
+      }
+      .card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 14px 35px rgba(16, 35, 63, 0.12);
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.8rem;
+      }
+      p {
+        margin: 0;
+        line-height: 1.6;
+      }
+      .hint {
+        margin-top: 10px;
+        color: #4c6180;
+        font-size: 0.95rem;
+      }
+      .upload {
+        margin-top: 20px;
+        border: 2px dashed #aac7f5;
+        border-radius: 14px;
+        padding: 18px;
+        text-align: center;
+        background: #f7fbff;
+      }
+      input[type="file"] {
+        margin-top: 10px;
+      }
+      .preview-wrap {
+        margin-top: 20px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        align-items: start;
+      }
+      img {
+        width: 100%;
+        border-radius: 12px;
+        display: none;
+      }
+      .result {
+        border-radius: 12px;
+        background: #f2f7ff;
+        padding: 16px;
+      }
+      .badge {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 8px 14px;
+        background: #d9e9ff;
+        color: #17407d;
+      }
+      .meta {
+        margin-top: 10px;
+        font-size: 0.92rem;
+        color: #3e5b86;
+      }
+      .footer-note {
+        margin-top: 14px;
+        font-size: 0.85rem;
+        color: #5673a4;
+      }
+      button {
+        margin-top: 12px;
+        border: none;
+        background: #1f67d5;
+        color: white;
+        border-radius: 10px;
+        font-weight: 700;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #7ea3e0;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <section class="card">
+        <h1>🐶 강아지 얼굴 기분 분석기 (프로토타입)</h1>
+        <p>
+          강아지 얼굴 사진을 올리면 이미지의 밝기/색감/디테일을 기반으로
+          <strong>활발함</strong>과 <strong>차분함</strong>을 추정해 기분을 보여줍니다.
+        </p>
+        <p class="hint">
+          실제 서비스에서는 강아지 표정 데이터셋과 딥러닝 모델을 연결해 정확도를 높이세요.
+        </p>
+
+        <div class="upload">
+          <label for="fileInput">강아지 얼굴 사진 선택</label><br />
+          <input id="fileInput" type="file" accept="image/*" />
+          <br />
+          <button id="analyzeBtn" disabled>기분 분석하기</button>
+        </div>
+
+        <div class="preview-wrap">
+          <img id="preview" alt="강아지 업로드 미리보기" />
+          <div class="result">
+            <p><strong>분석 결과</strong></p>
+            <span id="moodBadge" class="badge">사진을 업로드해 주세요</span>
+            <p id="meta" class="meta">아직 분석되지 않았습니다.</p>
+            <p class="footer-note">
+              참고: 본 데모는 룰 기반 추정입니다.
+            </p>
+          </div>
+        </div>
+
+        <canvas id="hiddenCanvas" width="320" height="320" style="display: none"></canvas>
+      </section>
+    </main>
+
+    <script>
+      const fileInput = document.getElementById("fileInput");
+      const analyzeBtn = document.getElementById("analyzeBtn");
+      const preview = document.getElementById("preview");
+      const moodBadge = document.getElementById("moodBadge");
+      const meta = document.getElementById("meta");
+      const canvas = document.getElementById("hiddenCanvas");
+      const ctx = canvas.getContext("2d");
+      let currentImage = null;
+
+      fileInput.addEventListener("change", (event) => {
+        const [file] = event.target.files;
+        if (!file) {
+          analyzeBtn.disabled = true;
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          preview.src = e.target.result;
+          preview.style.display = "block";
+          currentImage = new Image();
+          currentImage.onload = () => {
+            analyzeBtn.disabled = false;
+          };
+          currentImage.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      analyzeBtn.addEventListener("click", () => {
+        if (!currentImage) return;
+
+        const size = 320;
+        canvas.width = size;
+        canvas.height = size;
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(currentImage, 0, 0, size, size);
+
+        const { data } = ctx.getImageData(0, 0, size, size);
+        let brightnessSum = 0;
+        let saturationSum = 0;
+        let detailSum = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          brightnessSum += (r + g + b) / 3;
+          saturationSum += max === 0 ? 0 : (max - min) / max;
+
+          if (i > 4) {
+            const prevR = data[i - 4];
+            detailSum += Math.abs(r - prevR);
+          }
+        }
+
+        const pixelCount = data.length / 4;
+        const brightness = brightnessSum / pixelCount;
+        const saturation = saturationSum / pixelCount;
+        const detail = detailSum / pixelCount;
+
+        const energyScore =
+          Math.min(100, Math.max(0, ((brightness - 80) * 0.45) + saturation * 45 + detail * 0.75));
+
+        let mood = "차분해 보여요 😌";
+        if (energyScore > 68) mood = "아주 신나 보여요 🤩";
+        else if (energyScore > 48) mood = "기분 좋은 상태예요 🙂";
+        else if (energyScore < 28) mood = "조금 졸려 보여요 💤";
+
+        moodBadge.textContent = mood;
+        meta.textContent = `활발함 점수: ${energyScore.toFixed(1)} / 100 (밝기 ${brightness.toFixed(
+          1
+        )}, 채도 ${saturation.toFixed(2)}, 디테일 ${detail.toFixed(1)})`;
+      });
+    </script>
+  </body>
+</html>
