@@ -29,3 +29,10 @@ MakeCode에서 이 저장소를 편집합니다.
 
 * for PXT/microbit
 <script src="https://makecode.com/gh-pages-embed.js"></script><script>makeCodeRender("{{ site.makecode.home_url }}", "{{ site.github.owner_name }}/{{ site.github.repository_name }}");</script>
+
+## 강아지 얼굴 기분 분석 앱 프로토타입
+
+강아지 얼굴 사진을 업로드해 기분을 추정하는 데모를 추가했습니다.
+
+- 실행 파일: `dog_mood_app.html`
+- 가이드 문서: `DOG_MOOD_APP_GUIDE.md`
