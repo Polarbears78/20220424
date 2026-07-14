@@ -36,6 +36,26 @@
   header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
   header p { font-size: 12.5px; color: var(--text-sub); margin-top: 2px; }
 
+  /* 자녀 선택 */
+  .child-switch { display: flex; gap: 8px; margin-bottom: 12px; }
+  .child-switch button {
+    flex: 1;
+    padding: 8px 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text-sub);
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .child-switch button.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+  }
+
   /* 탭 */
   nav {
     display: flex;
@@ -302,6 +322,8 @@
     <p>일일 이행 기록 · 상담 자료 정리용</p>
   </header>
 
+  <div class="child-switch" id="child-switch"></div>
+
   <nav>
     <button data-tab="input" class="active">오늘 입력</button>
     <button data-tab="week">주간 현황</button>
@@ -438,6 +460,12 @@
   var SETTINGS_KEY = 'behaviorLogSettings';
   var WAKE_CUTOFF = '08:00';
 
+  // 자녀별 기록 분리: 첫째는 기존 키 그대로(하위 호환), 이후는 '키:이름'
+  var CHILDREN = ['김민우', '김민준'];
+  function storageKeyFor(child) {
+    return child === CHILDREN[0] ? STORAGE_KEY : STORAGE_KEY + ':' + child;
+  }
+
   // 판정 대상 5개 항목 정의 (표·CSV·요약에서 공통 사용)
   var ITEMS = [
     { key: 'screenTime',  name: '기기 사용시간', okLabel: '이행',  badLabel: '미이행' },
@@ -456,13 +484,13 @@
   // ---------- 저장소 ----------
   function loadAll() {
     try {
-      var raw = localStorage.getItem(STORAGE_KEY);
+      var raw = localStorage.getItem(storageKeyFor(activeChild));
       var data = raw ? JSON.parse(raw) : {};
       return (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
     } catch (e) { return {}; }
   }
   function saveAll(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(storageKeyFor(activeChild), JSON.stringify(data));
   }
   function loadSettings() {
     try {
@@ -476,8 +504,9 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
 
-  var records = loadAll();   // { 'YYYY-MM-DD': record }
   var settings = loadSettings();
+  var activeChild = CHILDREN.indexOf(settings.activeChild) !== -1 ? settings.activeChild : CHILDREN[0];
+  var records = loadAll();   // 선택된 자녀의 { 'YYYY-MM-DD': record }
 
   // ---------- 유틸 ----------
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -672,11 +701,11 @@
     };
 
     if (records[dateStr]) {
-      if (!confirm(dateStr + ' 기록이 이미 있습니다. 덮어쓸까요?')) return;
+      if (!confirm(activeChild + ' ' + dateStr + ' 기록이 이미 있습니다. 덮어쓸까요?')) return;
     }
     records[dateStr] = rec;
     saveAll(records);
-    elSaveMsg.textContent = dateStr + ' 저장 완료 (이행 ' + dailyScore(rec) + '/5)';
+    elSaveMsg.textContent = activeChild + ' ' + dateStr + ' 저장 완료 (이행 ' + dailyScore(rec) + '/5)';
     document.getElementById('f-date-hint').textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
     setTimeout(function () { elSaveMsg.textContent = ''; }, 3000);
   });
@@ -915,7 +944,7 @@
     box.querySelectorAll('.del').forEach(function (b) {
       b.addEventListener('click', function () {
         var d = b.dataset.date;
-        if (!confirm(d + ' 기록을 삭제할까요? 되돌릴 수 없습니다.')) return;
+        if (!confirm(activeChild + ' ' + d + ' 기록을 삭제할까요? 되돌릴 수 없습니다.')) return;
         delete records[d];
         saveAll(records);
         renderAll();
@@ -978,7 +1007,7 @@
     var recorded = dayStrs.filter(function (ds) { return records[ds]; });
 
     var lines = [];
-    lines.push('[생활 약속 기록] 주간 ' +
+    lines.push('[생활 약속 기록·' + activeChild + '] 주간 ' +
       (weekStart.getMonth() + 1) + '/' + weekStart.getDate() + '(월) ~ ' +
       (end.getMonth() + 1) + '/' + end.getDate() + '(일)');
     lines.push('기록 ' + recorded.length + '일 / 7일');
@@ -1027,7 +1056,7 @@
 
   function buildMonthText(dates) {
     var lines = [];
-    lines.push('[생활 약속 기록] ' +
+    lines.push('[생활 약속 기록·' + activeChild + '] ' +
       (currentMonth === 'all' ? '전체 기간' : currentMonth.replace('-', '년 ') + '월') + ' 요약');
     lines.push('기록 ' + dates.length + '일');
     lines.push('');
@@ -1111,14 +1140,38 @@
     var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = '생활약속기록_' + (currentMonth === 'all' ? '전체' : currentMonth) + '.csv';
+    a.download = '생활약속기록_' + activeChild + '_' + (currentMonth === 'all' ? '전체' : currentMonth) + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
   });
 
+  // ---------- 자녀 선택 ----------
+  function renderChildSwitch() {
+    var box = document.getElementById('child-switch');
+    box.innerHTML = '';
+    CHILDREN.forEach(function (name) {
+      var b = document.createElement('button');
+      b.textContent = name;
+      if (name === activeChild) b.className = 'active';
+      b.addEventListener('click', function () {
+        if (name === activeChild) return;
+        activeChild = name;
+        settings.activeChild = name;
+        saveSettings(settings);
+        records = loadAll();
+        renderChildSwitch();
+        loadFormFor(elDate.value);
+        renderWeek();
+        renderAll();
+      });
+      box.appendChild(b);
+    });
+  }
+
   // 초기 렌더
+  renderChildSwitch();
   renderWeek();
   renderAll();
 })();
