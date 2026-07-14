@@ -278,6 +278,7 @@
     cursor: pointer;
     font-family: inherit;
   }
+  .rec-foot .copy { border: 1px solid var(--line); background: none; color: var(--text-sub); }
   .rec-foot .edit { border: 1px solid var(--accent); background: none; color: var(--accent); }
   .rec-foot .del { border: 1px solid var(--line); background: none; color: var(--bad); }
 
@@ -413,6 +414,11 @@
 
       <button class="btn" id="btn-save">저장</button>
       <div class="save-msg" id="save-msg"></div>
+
+      <div class="copy-row">
+        <button class="btn btn-sub btn-sm" id="btn-copy-day" style="width:auto">이 날짜 카톡용 복사</button>
+        <span class="copy-msg" id="copy-msg-day"></span>
+      </div>
 
       <details class="settings">
         <summary>설정</summary>
@@ -572,7 +578,7 @@
     if (min == null) return '-';
     var h = Math.floor(min / 60), m = min % 60;
     if (h === 0) return m + '분';
-    return h + '시간 ' + (m > 0 ? m + '분' : '');
+    return h + '시간' + (m > 0 ? ' ' + m + '분' : '');
   }
   function timeToMin(hhmm) {
     if (!hhmm) return null;
@@ -1027,12 +1033,21 @@
         '<div class="rec-items">' + activeItems().map(function (it) { return badgeFor(rec, it); }).join('') + '</div>' +
         (rec.memo ? '<div class="rec-memo">메모: ' + escapeHtml(rec.memo) + '</div>' : '') +
         '<div class="rec-foot">' +
+        '<button class="copy" data-date="' + d + '">카톡용 복사</button>' +
         '<button class="edit" data-date="' + d + '">수정</button>' +
         '<button class="del" data-date="' + d + '">삭제</button>' +
         '</div></div>';
     });
     box.innerHTML = html;
 
+    box.querySelectorAll('.copy').forEach(function (b) {
+      b.addEventListener('click', function () {
+        copyTextRaw(buildDayText(b.dataset.date), function (ok) {
+          b.textContent = ok ? '복사됨' : '복사 실패';
+          setTimeout(function () { b.textContent = '카톡용 복사'; }, 2000);
+        });
+      });
+    });
     box.querySelectorAll('.del').forEach(function (b) {
       b.addEventListener('click', function () {
         var d = b.dataset.date;
@@ -1053,12 +1068,7 @@
   }
 
   // ---------- 요약 텍스트 복사 (카톡 붙여넣기용) ----------
-  function copyText(text, msgEl) {
-    function show(ok) {
-      msgEl.textContent = ok ? '복사되었습니다. 카톡에 붙여넣으세요.' : '복사에 실패했습니다.';
-      msgEl.style.color = ok ? 'var(--ok)' : 'var(--bad)';
-      setTimeout(function () { msgEl.textContent = ''; }, 3000);
-    }
+  function copyTextRaw(text, done) {
     function fallback() {
       var ta = document.createElement('textarea');
       ta.value = text;
@@ -1069,13 +1079,20 @@
       var ok = false;
       try { ok = document.execCommand('copy'); } catch (e) {}
       document.body.removeChild(ta);
-      show(ok);
+      done(ok);
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { show(true); }, fallback);
+      navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
     } else {
       fallback();
     }
+  }
+  function copyText(text, msgEl) {
+    copyTextRaw(text, function (ok) {
+      msgEl.textContent = ok ? '복사되었습니다. 카톡에 붙여넣으세요.' : '복사에 실패했습니다.';
+      msgEl.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+      setTimeout(function () { msgEl.textContent = ''; }, 3000);
+    });
   }
 
   function judgedCount(dates, key) {
@@ -1085,6 +1102,37 @@
       if (j !== null) { cnt++; if (j) ok++; }
     });
     return { ok: ok, cnt: cnt };
+  }
+
+  // 하루 기록 요약 (기록이 없으면 null)
+  function buildDayText(dateStr) {
+    var r = records[dateStr];
+    if (!r) return null;
+    var dt = parseDate(dateStr);
+    var lines = [];
+    lines.push('[생활 약속 기록·' + activeChild + '] ' + dateStr + ' (' + DAY_NAMES[dt.getDay()] + ')');
+    lines.push('이행 ' + dailyScore(r) + '/' + maxScore());
+    lines.push('');
+    activeItems().forEach(function (it) {
+      var j = judge(r, it.key);
+      var line = '- ' + it.name + ': ';
+      if (it.key === 'screenTime') {
+        line += typeof r.screenTime === 'number'
+          ? fmtMinutes(r.screenTime) + ' → ' + (j ? '이행' : '미이행') + ' (기준 ' + settings.screenLimit + '분)'
+          : '미입력';
+      } else {
+        line += j === true ? it.okLabel : (j === false ? it.badLabel : '미입력');
+      }
+      if (it.key === 'morningReady' && r.wakeTime) line += ' (기상 ' + r.wakeTime + ')';
+      lines.push(line);
+    });
+    var pt = problemTotal(r);
+    var bd = subjectBreakdown(r);
+    lines.push('- 풀이 문항: ' + (pt !== null ? pt + '문항' + (bd ? ' (' + bd + ')' : '') : '미입력'));
+    lines.push('- 암기 단어: ' + (typeof r.wordCount === 'number' ? r.wordCount + '개' : '미입력'));
+    if (!r.wakeTime) lines.push('- 기상 시각: 미입력');
+    if (r.memo) lines.push('- 특이사항: ' + r.memo);
+    return lines.join('\n');
   }
 
   function buildWeekText() {
@@ -1190,6 +1238,18 @@
     });
     return lines.join('\n');
   }
+
+  document.getElementById('btn-copy-day').addEventListener('click', function () {
+    var msgEl = document.getElementById('copy-msg-day');
+    var text = elDate.value ? buildDayText(elDate.value) : null;
+    if (!text) {
+      msgEl.textContent = '저장된 기록이 없습니다. 먼저 저장해 주세요.';
+      msgEl.style.color = 'var(--bad)';
+      setTimeout(function () { msgEl.textContent = ''; }, 3000);
+      return;
+    }
+    copyText(text, msgEl);
+  });
 
   document.getElementById('btn-copy-week').addEventListener('click', function () {
     copyText(buildWeekText(), document.getElementById('copy-msg-week'));
