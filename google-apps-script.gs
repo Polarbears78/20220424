@@ -9,6 +9,9 @@
 // ▼▼ 배포 전에 반드시 나만 아는 값으로 바꾸세요 (앱 설정의 '비밀 코드'와 동일하게) ▼▼
 var TOKEN = '여기에-비밀코드-입력';
 
+// ▼▼ 자녀 조회 페이지용 코드 (읽기 전용). TOKEN과 다른 값으로 정하고, 자녀에게는 이 코드만 알려주세요 ▼▼
+var VIEW_TOKEN = '여기에-조회코드-입력';
+
 var SHEET_NAME = '기록';
 var HEADERS = ['자녀', '날짜', '기기사용(분)', '국영수 확인', '국어 문항', '수학 문항', '영어 문항',
                '문항 합계(구버전)', '암기 단어', '기상 시각', '아침 준비', '공기계 제출',
@@ -16,7 +19,9 @@ var HEADERS = ['자녀', '날짜', '기기사용(분)', '국영수 확인', '국
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  if (p.token !== TOKEN) return json_({ ok: false, error: 'unauthorized' });
+  // 조회(GET)는 비밀 코드 또는 조회 코드 둘 다 허용, 쓰기(POST)는 비밀 코드만
+  var authorized = p.token && (p.token === TOKEN || p.token === VIEW_TOKEN);
+  if (!authorized) return json_({ ok: false, error: 'unauthorized' });
   var child = p.child || '';
   var sh = getSheet_();
   var data = sh.getDataRange().getValues();
