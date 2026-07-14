@@ -313,7 +313,12 @@
     padding: 10px 0 4px;
     font-size: 13.5px;
   }
-  details.settings input { width: 90px; text-align: right; }
+  details.settings .inner input { width: 90px; text-align: right; }
+
+  .sync-box { padding: 10px 0 4px; border-top: 1px dashed var(--line); margin-top: 10px; }
+  .sync-box .sync-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .sync-box input { width: 100%; margin-bottom: 8px; font-size: 13px; }
+  .sync-box .hint { font-size: 12px; color: var(--text-sub); margin-top: 6px; }
 
   @media (min-width: 480px) {
     .summary-grid { grid-template-columns: 1fr 1fr 1fr; }
@@ -426,6 +431,16 @@
           <span>기기 사용시간 이행 기준</span>
           <input type="number" id="set-limit" min="0" max="1440" inputmode="numeric">
           <span>분 이하</span>
+        </div>
+        <div class="sync-box">
+          <div class="sync-title">서버 저장 (Google 시트 연동)</div>
+          <input type="url" id="set-sync-url" placeholder="Apps Script 웹 앱 URL (https://script.google.com/...)">
+          <input type="text" id="set-sync-token" placeholder="비밀 코드">
+          <div class="copy-row" style="margin-top:8px">
+            <button class="btn btn-sub btn-sm" id="btn-sync-now" style="width:auto">지금 동기화</button>
+            <span class="copy-msg" id="sync-msg"></span>
+          </div>
+          <div class="hint">설정 방법은 저장소의 SETUP-GOOGLE-SHEET.md 참고. 비워두면 이 기기에만 저장됩니다.</div>
         </div>
       </details>
     </div>
@@ -666,6 +681,90 @@
     updateScreenHint();
   });
 
+  // ---------- 서버 저장 (Google 시트 연동) ----------
+  var elSyncUrl = document.getElementById('set-sync-url');
+  var elSyncToken = document.getElementById('set-sync-token');
+  var elSyncMsg = document.getElementById('sync-msg');
+  elSyncUrl.value = settings.syncUrl || '';
+  elSyncToken.value = settings.syncToken || '';
+  elSyncUrl.addEventListener('change', function () {
+    settings.syncUrl = elSyncUrl.value.trim();
+    saveSettings(settings);
+  });
+  elSyncToken.addEventListener('change', function () {
+    settings.syncToken = elSyncToken.value.trim();
+    saveSettings(settings);
+  });
+
+  function syncConfigured() {
+    return !!(settings.syncUrl && settings.syncToken);
+  }
+  function setSyncMsg(text, ok) {
+    elSyncMsg.textContent = text;
+    elSyncMsg.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+  }
+  function serverPost(payload) {
+    payload.token = settings.syncToken;
+    // 커스텀 헤더 없이 보내야 Apps Script가 preflight 없이 받을 수 있음
+    return fetch(settings.syncUrl, { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || '서버 오류');
+        return data;
+      });
+  }
+  // 서버와 양방향 동기화: 최신 수정시각이 이기고, 서버에 없는 로컬 기록은 올려 보냄
+  function pullFromServer() {
+    if (!syncConfigured()) {
+      setSyncMsg('URL과 비밀 코드를 먼저 입력하세요.', false);
+      return;
+    }
+    var child = activeChild;
+    setSyncMsg('동기화 중…', true);
+    fetch(settings.syncUrl + '?token=' + encodeURIComponent(settings.syncToken) +
+          '&child=' + encodeURIComponent(child))
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || '서버 오류');
+        if (child !== activeChild) return; // 동기화 중 자녀가 바뀐 경우 무시
+        var serverByDate = {};
+        (data.records || []).forEach(function (sr) {
+          if (sr && sr.date) serverByDate[sr.date] = sr;
+        });
+        Object.keys(serverByDate).forEach(function (d) {
+          var lr = records[d];
+          if (!lr || String(serverByDate[d].updatedAt || '') > String(lr.updatedAt || '')) {
+            records[d] = serverByDate[d];
+          }
+        });
+        var toPush = [];
+        Object.keys(records).forEach(function (d) {
+          var sr = serverByDate[d];
+          if (!sr || String(records[d].updatedAt || '') > String(sr.updatedAt || '')) {
+            toPush.push(records[d]);
+          }
+        });
+        saveAll(records);
+        loadFormFor(elDate.value);
+        renderWeek();
+        renderAll();
+        var done = function () {
+          setSyncMsg('동기화 완료 (' + new Date().toTimeString().slice(0, 5) + ')', true);
+        };
+        if (toPush.length) {
+          serverPost({ action: 'saveAll', child: child, records: toPush }).then(done, function (e) {
+            setSyncMsg('일부 기록 업로드 실패: ' + e.message, false);
+          });
+        } else {
+          done();
+        }
+      })
+      .catch(function (e) {
+        setSyncMsg('동기화 실패: ' + (e && e.message ? e.message : '네트워크 오류'), false);
+      });
+  }
+  document.getElementById('btn-sync-now').addEventListener('click', pullFromServer);
+
   function getRadio(name) {
     var el = document.querySelector('input[name="' + name + '"]:checked');
     return el ? el.value === '1' : null;
@@ -791,9 +890,17 @@
     if (records[dateStr]) {
       if (!confirm(activeChild + ' ' + dateStr + ' 기록이 이미 있습니다. 덮어쓸까요?')) return;
     }
+    rec.updatedAt = new Date().toISOString();
     records[dateStr] = rec;
     saveAll(records);
     elSaveMsg.textContent = activeChild + ' ' + dateStr + ' 저장 완료 (이행 ' + dailyScore(rec) + '/' + maxScore() + ')';
+    if (syncConfigured()) {
+      serverPost({ action: 'save', child: activeChild, record: rec }).then(function () {
+        setSyncMsg('서버 저장됨 (' + new Date().toTimeString().slice(0, 5) + ')', true);
+      }, function (e) {
+        setSyncMsg('서버 전송 실패 — 이 기기에는 저장됨. 나중에 "지금 동기화"를 눌러주세요.', false);
+      });
+    }
     document.getElementById('f-date-hint').textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
     setTimeout(function () { elSaveMsg.textContent = ''; }, 3000);
   });
@@ -1055,6 +1162,13 @@
         delete records[d];
         saveAll(records);
         renderAll();
+        if (syncConfigured()) {
+          serverPost({ action: 'delete', child: activeChild, date: d }).then(function () {
+            setSyncMsg('서버에서도 삭제됨', true);
+          }, function () {
+            setSyncMsg('서버 삭제 실패 — 시트에서 직접 지워주세요.', false);
+          });
+        }
       });
     });
     box.querySelectorAll('.edit').forEach(function (b) {
@@ -1347,6 +1461,7 @@
         loadFormFor(elDate.value);
         renderWeek();
         renderAll();
+        if (syncConfigured()) pullFromServer();
       });
       box.appendChild(b);
     });
@@ -1357,6 +1472,7 @@
   applyChildItems();
   renderWeek();
   renderAll();
+  if (syncConfigured()) pullFromServer();
 })();
 </script>
 </body>
