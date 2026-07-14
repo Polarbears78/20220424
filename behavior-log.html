@@ -116,6 +116,10 @@
   .time-row input { width: 80px; text-align: right; }
   .time-row span { font-size: 14px; color: var(--text-sub); }
 
+  .subj-row { display: flex; gap: 8px; }
+  .subj-row .subj { flex: 1; font-size: 12px; font-weight: 600; color: var(--text-sub); }
+  .subj-row .subj input { margin-top: 4px; text-align: right; }
+
   .seg { display: flex; gap: 8px; }
   .seg label {
     flex: 1;
@@ -357,12 +361,19 @@
       </div>
 
       <div class="field">
-        <label>학습량 <span style="font-weight:400;color:var(--text-sub)">(선택)</span></label>
-        <div class="time-row">
-          <input type="number" id="f-prob" min="0" max="999" inputmode="numeric" placeholder="0"><span>문항 풀이</span>
-          <input type="number" id="f-word" min="0" max="999" inputmode="numeric" placeholder="0"><span>단어 암기</span>
+        <label>풀이 문항 수 <span style="font-weight:400;color:var(--text-sub)">(선택, 과목별)</span></label>
+        <div class="subj-row">
+          <label class="subj">국어<input type="number" id="f-prob-kor" min="0" max="999" inputmode="numeric" placeholder="0"></label>
+          <label class="subj">수학<input type="number" id="f-prob-math" min="0" max="999" inputmode="numeric" placeholder="0"></label>
+          <label class="subj">영어<input type="number" id="f-prob-eng" min="0" max="999" inputmode="numeric" placeholder="0"></label>
         </div>
-        <div class="hint">국수영 문제풀이 문항 수 · 암기한 단어 수</div>
+      </div>
+
+      <div class="field">
+        <label>암기 단어 수 <span style="font-weight:400;color:var(--text-sub)">(선택)</span></label>
+        <div class="time-row">
+          <input type="number" id="f-word" min="0" max="999" inputmode="numeric" placeholder="0"><span>개</span>
+        </div>
       </div>
 
       <div class="field">
@@ -475,10 +486,37 @@
     { key: 'olympiadPrep',name: '올림피아드 준비',okLabel: '함',    badLabel: '안 함' }
   ];
 
+  // 풀이 문항은 국·수·영 과목별로 기록
+  var SUBJECTS = [
+    { key: 'koreanCount',  name: '국어' },
+    { key: 'mathCount',    name: '수학' },
+    { key: 'englishCount', name: '영어' }
+  ];
+  // 과목별 합계. 과목 입력이 없는 구버전 기록은 problemCount 총합을 그대로 인정
+  function problemTotal(rec) {
+    if (!rec) return null;
+    var sum = 0, has = false;
+    SUBJECTS.forEach(function (s) {
+      if (typeof rec[s.key] === 'number') { sum += rec[s.key]; has = true; }
+    });
+    if (has) return sum;
+    return typeof rec.problemCount === 'number' ? rec.problemCount : null;
+  }
+  // '국 10 · 수 8 · 영 7' — 과목별 입력이 하나도 없으면 null
+  function subjectBreakdown(rec) {
+    if (!rec) return null;
+    var parts = [];
+    SUBJECTS.forEach(function (s) {
+      if (typeof rec[s.key] === 'number') parts.push(s.name.charAt(0) + ' ' + rec[s.key]);
+    });
+    return parts.length ? parts.join(' · ') : null;
+  }
+
   // 판정 없이 수치만 기록하는 학습량 항목
   var COUNTS = [
-    { key: 'problemCount', name: '풀이 문항', unit: '문항' },
-    { key: 'wordCount',    name: '암기 단어', unit: '개' }
+    { key: 'problem', name: '풀이 문항', unit: '문항', get: problemTotal },
+    { key: 'word',    name: '암기 단어', unit: '개',
+      get: function (rec) { return rec && typeof rec.wordCount === 'number' ? rec.wordCount : null; } }
   ];
 
   // 자녀별 판정 항목 구성: 김민준은 공기계 제출·올림피아드 준비 제외
@@ -556,14 +594,25 @@
     var v = rec[key];
     return (v === true || v === false) ? v : null;
   }
-  // 수치 항목 합계: 입력된 날만 집계
-  function countSum(dates, key) {
+  // 수치 항목 합계: 입력된 날만 집계 (get: 레코드 → 수치 또는 null)
+  function countSum(dates, get) {
     var sum = 0, cnt = 0;
     dates.forEach(function (d) {
-      var r = records[d];
-      if (r && typeof r[key] === 'number') { sum += r[key]; cnt++; }
+      var v = get(records[d]);
+      if (typeof v === 'number') { sum += v; cnt++; }
     });
     return { sum: sum, cnt: cnt };
+  }
+  // 기간 내 과목별 합계 문자열 ('국 30 · 수 24' 등, 없으면 null)
+  function subjectSumLine(dates) {
+    var parts = [];
+    SUBJECTS.forEach(function (s) {
+      var c = countSum(dates, function (r) {
+        return r && typeof r[s.key] === 'number' ? r[s.key] : null;
+      });
+      if (c.cnt > 0) parts.push(s.name.charAt(0) + ' ' + c.sum);
+    });
+    return parts.length ? parts.join(' · ') : null;
   }
 
   function dailyScore(rec) {
@@ -589,8 +638,13 @@
   var elDate = document.getElementById('f-date');
   var elStH = document.getElementById('f-st-h');
   var elStM = document.getElementById('f-st-m');
-  var elProb = document.getElementById('f-prob');
+  var elProbKor = document.getElementById('f-prob-kor');
+  var elProbMath = document.getElementById('f-prob-math');
+  var elProbEng = document.getElementById('f-prob-eng');
   var elWord = document.getElementById('f-word');
+  function numOrNull(el) {
+    return el.value !== '' ? Math.max(0, parseInt(el.value, 10) || 0) : null;
+  }
   var elWake = document.getElementById('f-wake');
   var elMemo = document.getElementById('f-memo');
   var elSaveMsg = document.getElementById('save-msg');
@@ -667,7 +721,9 @@
     if (rec) {
       elStH.value = typeof rec.screenTime === 'number' ? Math.floor(rec.screenTime / 60) : '';
       elStM.value = typeof rec.screenTime === 'number' ? rec.screenTime % 60 : '';
-      elProb.value = typeof rec.problemCount === 'number' ? rec.problemCount : '';
+      elProbKor.value = typeof rec.koreanCount === 'number' ? rec.koreanCount : '';
+      elProbMath.value = typeof rec.mathCount === 'number' ? rec.mathCount : '';
+      elProbEng.value = typeof rec.englishCount === 'number' ? rec.englishCount : '';
       elWord.value = typeof rec.wordCount === 'number' ? rec.wordCount : '';
       elWake.value = rec.wakeTime || '';
       elMemo.value = rec.memo || '';
@@ -679,7 +735,8 @@
       dateHint.textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
     } else {
       elStH.value = ''; elStM.value = '';
-      elProb.value = ''; elWord.value = '';
+      elProbKor.value = ''; elProbMath.value = ''; elProbEng.value = '';
+      elWord.value = '';
       elWake.value = ''; elMemo.value = '';
       setRadio('study', null); setRadio('morning', null);
       setRadio('device', null); setRadio('olympiad', null);
@@ -701,12 +758,23 @@
     var h = parseInt(elStH.value, 10) || 0;
     var m = parseInt(elStM.value, 10) || 0;
 
+    var kor = numOrNull(elProbKor);
+    var math = numOrNull(elProbMath);
+    var eng = numOrNull(elProbEng);
+    var prev = records[dateStr];
+    // 과목별 입력이 전혀 없으면 구버전 총합 기록을 잃지 않도록 유지
+    var legacyProblem = (kor === null && math === null && eng === null &&
+      prev && typeof prev.problemCount === 'number') ? prev.problemCount : null;
+
     var rec = {
       date: dateStr,
       screenTime: hasSt ? h * 60 + m : null,
       studyShown: getRadio('study'),
-      problemCount: elProb.value !== '' ? Math.max(0, parseInt(elProb.value, 10) || 0) : null,
-      wordCount: elWord.value !== '' ? Math.max(0, parseInt(elWord.value, 10) || 0) : null,
+      koreanCount: kor,
+      mathCount: math,
+      englishCount: eng,
+      problemCount: legacyProblem,
+      wordCount: numOrNull(elWord),
       wakeTime: elWake.value || null,
       morningReady: getRadio('morning'),
       deviceSubmit: hasItem('deviceSubmit') ? getRadio('device') : null,
@@ -783,8 +851,7 @@
     COUNTS.forEach(function (ct) {
       html += '<tr><td class="item-name">' + ct.name + '</td>';
       days.forEach(function (d) {
-        var rec = records[fmtDate(d)];
-        var v = rec ? rec[ct.key] : null;
+        var v = ct.get(records[fmtDate(d)]);
         html += typeof v === 'number' ? '<td>' + v + '</td>' : '<td class="c-none">－</td>';
       });
       html += '</tr>';
@@ -818,12 +885,13 @@
     var statHtml = stCnt > 0
       ? '주간 평균 사용시간: <strong>' + fmtMinutes(Math.round(stSum / stCnt)) + '</strong> (' + stCnt + '일 입력)'
       : '주간 평균 사용시간: 입력된 기록 없음';
-    var dayStrs = days.map(fmtDate);
-    var prob = countSum(dayStrs, 'problemCount');
-    var word = countSum(dayStrs, 'wordCount');
+    var dayStrs = days.map(function (d) { return fmtDate(d); });
+    var prob = countSum(dayStrs, problemTotal);
+    var word = countSum(dayStrs, COUNTS[1].get);
     if (prob.cnt > 0 || word.cnt > 0) {
+      var bd = subjectSumLine(dayStrs);
       statHtml += '<br>주간 학습량: <strong>' +
-        (prob.cnt > 0 ? '풀이 ' + prob.sum + '문항' : '') +
+        (prob.cnt > 0 ? '풀이 ' + prob.sum + '문항' + (bd ? ' (' + bd + ')' : '') : '') +
         (prob.cnt > 0 && word.cnt > 0 ? ' · ' : '') +
         (word.cnt > 0 ? '암기 ' + word.sum + '개' : '') + '</strong>';
     }
@@ -903,10 +971,15 @@
     html += '<div class="cell"><div class="k">평균 기상 시각</div><div class="v">' +
       (wkCnt > 0 ? minToTime(wkSum / wkCnt) : '-') + '</div></div>';
     COUNTS.forEach(function (ct) {
-      var c = countSum(dates, ct.key);
+      var c = countSum(dates, ct.get);
+      var sub = c.cnt > 0 ? '일평균 ' + Math.round(c.sum / c.cnt) : '';
+      if (ct.key === 'problem' && c.cnt > 0) {
+        var bd = subjectSumLine(dates);
+        if (bd) sub = bd + ' · ' + sub;
+      }
       html += '<div class="cell"><div class="k">총 ' + ct.name + '</div><div class="v">' +
         (c.cnt > 0 ? c.sum + ct.unit +
-          ' <span style="font-weight:400;font-size:12px;color:var(--text-sub)">(일평균 ' + Math.round(c.sum / c.cnt) + ')</span>' : '-') +
+          ' <span style="font-weight:400;font-size:12px;color:var(--text-sub)">(' + sub + ')</span>' : '-') +
         '</div></div>';
     });
     html += '<div class="cell"><div class="k">기록 일수</div><div class="v">' + dates.length + '일</div></div>';
@@ -940,7 +1013,11 @@
       var detail = [];
       if (typeof rec.screenTime === 'number') detail.push('사용 ' + fmtMinutes(rec.screenTime));
       if (rec.wakeTime) detail.push('기상 ' + rec.wakeTime);
-      if (typeof rec.problemCount === 'number') detail.push('풀이 ' + rec.problemCount + '문항');
+      var pt = problemTotal(rec);
+      if (pt !== null) {
+        var bd = subjectBreakdown(rec);
+        detail.push('풀이 ' + pt + '문항' + (bd ? ' (' + bd + ')' : ''));
+      }
       if (typeof rec.wordCount === 'number') detail.push('암기 ' + rec.wordCount + '개');
 
       html += '<div class="rec">' +
@@ -1045,8 +1122,13 @@
     lines.push('- 평균 사용시간: ' + (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '미입력') +
       ' (기준 ' + settings.screenLimit + '분)');
     COUNTS.forEach(function (ct) {
-      var c = countSum(dayStrs, ct.key);
-      lines.push('- ' + ct.name + ': ' + (c.cnt > 0 ? '합계 ' + c.sum + ct.unit : '미입력'));
+      var c = countSum(dayStrs, ct.get);
+      var line = '- ' + ct.name + ': ' + (c.cnt > 0 ? '합계 ' + c.sum + ct.unit : '미입력');
+      if (ct.key === 'problem' && c.cnt > 0) {
+        var bd = subjectSumLine(dayStrs);
+        if (bd) line += ' (' + bd + ')';
+      }
+      lines.push(line);
     });
 
     if (recorded.length > 0) {
@@ -1059,7 +1141,11 @@
         var line = (d.getMonth() + 1) + '/' + d.getDate() + '(' + DAY_NAMES[d.getDay()] + ') ' +
           dailyScore(r) + '/' + maxScore();
         var extra = [];
-        if (typeof r.problemCount === 'number') extra.push('풀이 ' + r.problemCount);
+        var pt = problemTotal(r);
+        if (pt !== null) {
+          var bd = subjectBreakdown(r);
+          extra.push('풀이 ' + pt + (bd ? '(' + bd + ')' : ''));
+        }
         if (typeof r.wordCount === 'number') extra.push('암기 ' + r.wordCount);
         if (r.memo) extra.push(r.memo);
         if (extra.length) line += ' · ' + extra.join(' · ');
@@ -1093,9 +1179,14 @@
       ' (기준 ' + settings.screenLimit + '분)');
     lines.push('- 평균 기상 시각: ' + (wkCnt > 0 ? minToTime(wkSum / wkCnt) : '미입력'));
     COUNTS.forEach(function (ct) {
-      var c = countSum(dates, ct.key);
-      lines.push('- 총 ' + ct.name + ': ' +
-        (c.cnt > 0 ? c.sum + ct.unit + ' (일평균 ' + Math.round(c.sum / c.cnt) + ')' : '미입력'));
+      var c = countSum(dates, ct.get);
+      var line = '- 총 ' + ct.name + ': ' +
+        (c.cnt > 0 ? c.sum + ct.unit + ' (일평균 ' + Math.round(c.sum / c.cnt) + ')' : '미입력');
+      if (ct.key === 'problem' && c.cnt > 0) {
+        var bd = subjectSumLine(dates);
+        if (bd) line += ' — ' + bd;
+      }
+      lines.push(line);
     });
     return lines.join('\n');
   }
@@ -1132,7 +1223,8 @@
 
     var hasDev = hasItem('deviceSubmit');
     var hasOly = hasItem('olympiadPrep');
-    var header = ['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인', '풀이 문항 수', '암기 단어 수', '기상시각', '아침준비'];
+    var header = ['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인',
+                  '국어 문항', '수학 문항', '영어 문항', '풀이 문항 합계', '암기 단어 수', '기상시각', '아침준비'];
     if (hasDev) header.push('공기계 제출');
     if (hasOly) header.push('올림피아드 준비');
     header.push('이행수(' + maxScore() + '개 기준)', '특이사항');
@@ -1145,7 +1237,10 @@
         typeof r.screenTime === 'number' ? r.screenTime : '',
         judgeText(r, 'screenTime'),
         r.studyShown === true ? '보여줌' : (r.studyShown === false ? '안 보여줌' : '미입력'),
-        typeof r.problemCount === 'number' ? r.problemCount : '',
+        typeof r.koreanCount === 'number' ? r.koreanCount : '',
+        typeof r.mathCount === 'number' ? r.mathCount : '',
+        typeof r.englishCount === 'number' ? r.englishCount : '',
+        problemTotal(r) !== null ? problemTotal(r) : '',
         typeof r.wordCount === 'number' ? r.wordCount : '',
         r.wakeTime || '',
         judgeText(r, 'morningReady')
