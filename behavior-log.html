@@ -214,6 +214,10 @@
   .stat-line { font-size: 13.5px; color: var(--text-sub); margin-top: 10px; }
   .stat-line strong { color: var(--text); }
 
+  .copy-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .copy-row .btn { white-space: nowrap; flex-shrink: 0; }
+  .copy-msg { font-size: 12px; min-height: 16px; }
+
   /* 전체 기록 */
   .list-tools {
     display: flex;
@@ -392,6 +396,10 @@
         <table id="week-table"></table>
       </div>
       <div class="stat-line" id="week-stat"></div>
+      <div class="copy-row">
+        <button class="btn btn-sub btn-sm" id="btn-copy-week" style="width:auto">카톡용 요약 복사</button>
+        <span class="copy-msg" id="copy-msg-week"></span>
+      </div>
     </div>
   </section>
 
@@ -404,6 +412,10 @@
     <div class="card" id="month-summary-card">
       <h2 id="month-summary-title">월간 요약</h2>
       <div class="summary-grid" id="month-summary"></div>
+      <div class="copy-row">
+        <button class="btn btn-sub btn-sm" id="btn-copy-month" style="width:auto">카톡용 요약 복사</button>
+        <span class="copy-msg" id="copy-msg-month"></span>
+      </div>
     </div>
     <div id="rec-list"></div>
   </section>
@@ -856,6 +868,129 @@
       });
     });
   }
+
+  // ---------- 요약 텍스트 복사 (카톡 붙여넣기용) ----------
+  function copyText(text, msgEl) {
+    function show(ok) {
+      msgEl.textContent = ok ? '복사되었습니다. 카톡에 붙여넣으세요.' : '복사에 실패했습니다.';
+      msgEl.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+      setTimeout(function () { msgEl.textContent = ''; }, 3000);
+    }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      show(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { show(true); }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function judgedCount(dates, key) {
+    var ok = 0, cnt = 0;
+    dates.forEach(function (d) {
+      var j = judge(records[d], key);
+      if (j !== null) { cnt++; if (j) ok++; }
+    });
+    return { ok: ok, cnt: cnt };
+  }
+
+  function buildWeekText() {
+    var days = [], dayStrs = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      days.push(d);
+      dayStrs.push(fmtDate(d));
+    }
+    var end = days[6];
+    var recorded = dayStrs.filter(function (ds) { return records[ds]; });
+
+    var lines = [];
+    lines.push('[생활 약속 기록] 주간 ' +
+      (weekStart.getMonth() + 1) + '/' + weekStart.getDate() + '(월) ~ ' +
+      (end.getMonth() + 1) + '/' + end.getDate() + '(일)');
+    lines.push('기록 ' + recorded.length + '일 / 7일');
+    lines.push('');
+
+    ITEMS.forEach(function (it) {
+      var c = judgedCount(dayStrs, it.key);
+      var line = '- ' + it.name + ': ' + (c.cnt > 0 ? c.ok + '/' + c.cnt + '일 이행' : '미입력');
+      if (it.key === 'morningReady' && c.cnt > 0) {
+        line += c.ok >= 4 ? ' → 주간 기준 충족(4일 이상)' : ' → 주간 기준 미달(4일 미만)';
+      }
+      lines.push(line);
+    });
+
+    var stSum = 0, stCnt = 0;
+    recorded.forEach(function (ds) {
+      var r = records[ds];
+      if (typeof r.screenTime === 'number') { stSum += r.screenTime; stCnt++; }
+    });
+    lines.push('- 평균 사용시간: ' + (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '미입력') +
+      ' (기준 ' + settings.screenLimit + '분)');
+
+    if (recorded.length > 0) {
+      lines.push('');
+      lines.push('일별 이행');
+      days.forEach(function (d) {
+        var ds = fmtDate(d);
+        var r = records[ds];
+        if (!r) return;
+        var line = (d.getMonth() + 1) + '/' + d.getDate() + '(' + DAY_NAMES[d.getDay()] + ') ' +
+          dailyScore(r) + '/5';
+        if (r.memo) line += ' · ' + r.memo;
+        lines.push(line);
+      });
+    }
+    return lines.join('\n');
+  }
+
+  function buildMonthText(dates) {
+    var lines = [];
+    lines.push('[생활 약속 기록] ' +
+      (currentMonth === 'all' ? '전체 기간' : currentMonth.replace('-', '년 ') + '월') + ' 요약');
+    lines.push('기록 ' + dates.length + '일');
+    lines.push('');
+
+    ITEMS.forEach(function (it) {
+      var c = judgedCount(dates, it.key);
+      lines.push('- ' + it.name + ' 이행률: ' +
+        (c.cnt > 0 ? Math.round(c.ok / c.cnt * 100) + '% (' + c.ok + '/' + c.cnt + ')' : '미입력'));
+    });
+
+    var stSum = 0, stCnt = 0, wkSum = 0, wkCnt = 0;
+    dates.forEach(function (d) {
+      var r = records[d];
+      if (typeof r.screenTime === 'number') { stSum += r.screenTime; stCnt++; }
+      var wm = timeToMin(r.wakeTime);
+      if (wm !== null) { wkSum += wm; wkCnt++; }
+    });
+    lines.push('- 평균 사용시간: ' + (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '미입력') +
+      ' (기준 ' + settings.screenLimit + '분)');
+    lines.push('- 평균 기상 시각: ' + (wkCnt > 0 ? minToTime(wkSum / wkCnt) : '미입력'));
+    return lines.join('\n');
+  }
+
+  document.getElementById('btn-copy-week').addEventListener('click', function () {
+    copyText(buildWeekText(), document.getElementById('copy-msg-week'));
+  });
+  document.getElementById('btn-copy-month').addEventListener('click', function () {
+    var dates = sortedDatesDesc().filter(function (d) {
+      return currentMonth === 'all' || d.slice(0, 7) === currentMonth;
+    });
+    if (dates.length === 0) { alert('복사할 기록이 없습니다.'); return; }
+    copyText(buildMonthText(dates), document.getElementById('copy-msg-month'));
+  });
 
   // ---------- CSV 다운로드 ----------
   document.getElementById('btn-csv').addEventListener('click', function () {
