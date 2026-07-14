@@ -335,6 +335,15 @@
       </div>
 
       <div class="field">
+        <label>학습량 <span style="font-weight:400;color:var(--text-sub)">(선택)</span></label>
+        <div class="time-row">
+          <input type="number" id="f-prob" min="0" max="999" inputmode="numeric" placeholder="0"><span>문항 풀이</span>
+          <input type="number" id="f-word" min="0" max="999" inputmode="numeric" placeholder="0"><span>단어 암기</span>
+        </div>
+        <div class="hint">국수영 문제풀이 문항 수 · 암기한 단어 수</div>
+      </div>
+
+      <div class="field">
         <label for="f-wake">기상 시각</label>
         <input type="time" id="f-wake">
         <div class="hint" id="f-wake-hint"></div>
@@ -438,6 +447,12 @@
     { key: 'olympiadPrep',name: '올림피아드 준비',okLabel: '함',    badLabel: '안 함' }
   ];
 
+  // 판정 없이 수치만 기록하는 학습량 항목
+  var COUNTS = [
+    { key: 'problemCount', name: '풀이 문항', unit: '문항' },
+    { key: 'wordCount',    name: '암기 단어', unit: '개' }
+  ];
+
   // ---------- 저장소 ----------
   function loadAll() {
     try {
@@ -498,6 +513,16 @@
     var v = rec[key];
     return (v === true || v === false) ? v : null;
   }
+  // 수치 항목 합계: 입력된 날만 집계
+  function countSum(dates, key) {
+    var sum = 0, cnt = 0;
+    dates.forEach(function (d) {
+      var r = records[d];
+      if (r && typeof r[key] === 'number') { sum += r[key]; cnt++; }
+    });
+    return { sum: sum, cnt: cnt };
+  }
+
   function dailyScore(rec) {
     var ok = 0;
     ITEMS.forEach(function (it) { if (judge(rec, it.key) === true) ok++; });
@@ -521,6 +546,8 @@
   var elDate = document.getElementById('f-date');
   var elStH = document.getElementById('f-st-h');
   var elStM = document.getElementById('f-st-m');
+  var elProb = document.getElementById('f-prob');
+  var elWord = document.getElementById('f-word');
   var elWake = document.getElementById('f-wake');
   var elMemo = document.getElementById('f-memo');
   var elSaveMsg = document.getElementById('save-msg');
@@ -597,6 +624,8 @@
     if (rec) {
       elStH.value = typeof rec.screenTime === 'number' ? Math.floor(rec.screenTime / 60) : '';
       elStM.value = typeof rec.screenTime === 'number' ? rec.screenTime % 60 : '';
+      elProb.value = typeof rec.problemCount === 'number' ? rec.problemCount : '';
+      elWord.value = typeof rec.wordCount === 'number' ? rec.wordCount : '';
       elWake.value = rec.wakeTime || '';
       elMemo.value = rec.memo || '';
       setRadio('study', rec.studyShown);
@@ -607,6 +636,7 @@
       dateHint.textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
     } else {
       elStH.value = ''; elStM.value = '';
+      elProb.value = ''; elWord.value = '';
       elWake.value = ''; elMemo.value = '';
       setRadio('study', null); setRadio('morning', null);
       setRadio('device', null); setRadio('olympiad', null);
@@ -632,6 +662,8 @@
       date: dateStr,
       screenTime: hasSt ? h * 60 + m : null,
       studyShown: getRadio('study'),
+      problemCount: elProb.value !== '' ? Math.max(0, parseInt(elProb.value, 10) || 0) : null,
+      wordCount: elWord.value !== '' ? Math.max(0, parseInt(elWord.value, 10) || 0) : null,
       wakeTime: elWake.value || null,
       morningReady: getRadio('morning'),
       deviceSubmit: getRadio('device'),
@@ -704,6 +736,17 @@
       html += '</tr>';
     });
 
+    // 학습량 행 (수치 기록)
+    COUNTS.forEach(function (ct) {
+      html += '<tr><td class="item-name">' + ct.name + '</td>';
+      days.forEach(function (d) {
+        var rec = records[fmtDate(d)];
+        var v = rec ? rec[ct.key] : null;
+        html += typeof v === 'number' ? '<td>' + v + '</td>' : '<td class="c-none">－</td>';
+      });
+      html += '</tr>';
+    });
+
     // 일일 요약 행
     html += '<tr><td class="item-name">이행 개수</td>';
     days.forEach(function (d) {
@@ -729,9 +772,19 @@
       var rec = records[fmtDate(d)];
       if (rec && typeof rec.screenTime === 'number') { stSum += rec.screenTime; stCnt++; }
     });
-    document.getElementById('week-stat').innerHTML = stCnt > 0
+    var statHtml = stCnt > 0
       ? '주간 평균 사용시간: <strong>' + fmtMinutes(Math.round(stSum / stCnt)) + '</strong> (' + stCnt + '일 입력)'
       : '주간 평균 사용시간: 입력된 기록 없음';
+    var dayStrs = days.map(fmtDate);
+    var prob = countSum(dayStrs, 'problemCount');
+    var word = countSum(dayStrs, 'wordCount');
+    if (prob.cnt > 0 || word.cnt > 0) {
+      statHtml += '<br>주간 학습량: <strong>' +
+        (prob.cnt > 0 ? '풀이 ' + prob.sum + '문항' : '') +
+        (prob.cnt > 0 && word.cnt > 0 ? ' · ' : '') +
+        (word.cnt > 0 ? '암기 ' + word.sum + '개' : '') + '</strong>';
+    }
+    document.getElementById('week-stat').innerHTML = statHtml;
   }
 
   // ---------- 탭 3: 전체 기록 ----------
@@ -806,6 +859,13 @@
       (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '-') + '</div></div>';
     html += '<div class="cell"><div class="k">평균 기상 시각</div><div class="v">' +
       (wkCnt > 0 ? minToTime(wkSum / wkCnt) : '-') + '</div></div>';
+    COUNTS.forEach(function (ct) {
+      var c = countSum(dates, ct.key);
+      html += '<div class="cell"><div class="k">총 ' + ct.name + '</div><div class="v">' +
+        (c.cnt > 0 ? c.sum + ct.unit +
+          ' <span style="font-weight:400;font-size:12px;color:var(--text-sub)">(일평균 ' + Math.round(c.sum / c.cnt) + ')</span>' : '-') +
+        '</div></div>';
+    });
     html += '<div class="cell"><div class="k">기록 일수</div><div class="v">' + dates.length + '일</div></div>';
     box.innerHTML = html;
   }
@@ -836,6 +896,8 @@
       var detail = [];
       if (typeof rec.screenTime === 'number') detail.push('사용 ' + fmtMinutes(rec.screenTime));
       if (rec.wakeTime) detail.push('기상 ' + rec.wakeTime);
+      if (typeof rec.problemCount === 'number') detail.push('풀이 ' + rec.problemCount + '문항');
+      if (typeof rec.wordCount === 'number') detail.push('암기 ' + rec.wordCount + '개');
 
       html += '<div class="rec">' +
         '<div class="rec-head"><span class="d">' + d + ' (' + DAY_NAMES[dt.getDay()] + ')' +
@@ -938,6 +1000,10 @@
     });
     lines.push('- 평균 사용시간: ' + (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '미입력') +
       ' (기준 ' + settings.screenLimit + '분)');
+    COUNTS.forEach(function (ct) {
+      var c = countSum(dayStrs, ct.key);
+      lines.push('- ' + ct.name + ': ' + (c.cnt > 0 ? '합계 ' + c.sum + ct.unit : '미입력'));
+    });
 
     if (recorded.length > 0) {
       lines.push('');
@@ -948,7 +1014,11 @@
         if (!r) return;
         var line = (d.getMonth() + 1) + '/' + d.getDate() + '(' + DAY_NAMES[d.getDay()] + ') ' +
           dailyScore(r) + '/5';
-        if (r.memo) line += ' · ' + r.memo;
+        var extra = [];
+        if (typeof r.problemCount === 'number') extra.push('풀이 ' + r.problemCount);
+        if (typeof r.wordCount === 'number') extra.push('암기 ' + r.wordCount);
+        if (r.memo) extra.push(r.memo);
+        if (extra.length) line += ' · ' + extra.join(' · ');
         lines.push(line);
       });
     }
@@ -978,6 +1048,11 @@
     lines.push('- 평균 사용시간: ' + (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '미입력') +
       ' (기준 ' + settings.screenLimit + '분)');
     lines.push('- 평균 기상 시각: ' + (wkCnt > 0 ? minToTime(wkSum / wkCnt) : '미입력'));
+    COUNTS.forEach(function (ct) {
+      var c = countSum(dates, ct.key);
+      lines.push('- 총 ' + ct.name + ': ' +
+        (c.cnt > 0 ? c.sum + ct.unit + ' (일평균 ' + Math.round(c.sum / c.cnt) + ')' : '미입력'));
+    });
     return lines.join('\n');
   }
 
@@ -1011,7 +1086,7 @@
       return j === true ? '이행' : (j === false ? '미이행' : '미입력');
     }
 
-    var rows = [['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인', '기상시각',
+    var rows = [['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인', '풀이 문항 수', '암기 단어 수', '기상시각',
                  '아침준비', '공기계 제출', '올림피아드 준비', '이행수(5개 기준)', '특이사항']];
     dates.forEach(function (d) {
       var r = records[d];
@@ -1021,6 +1096,8 @@
         typeof r.screenTime === 'number' ? r.screenTime : '',
         judgeText(r, 'screenTime'),
         r.studyShown === true ? '보여줌' : (r.studyShown === false ? '안 보여줌' : '미입력'),
+        typeof r.problemCount === 'number' ? r.problemCount : '',
+        typeof r.wordCount === 'number' ? r.wordCount : '',
         r.wakeTime || '',
         judgeText(r, 'morningReady'),
         r.deviceSubmit === true ? '제출' : (r.deviceSubmit === false ? '미제출' : '미입력'),
