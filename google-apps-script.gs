@@ -73,10 +73,10 @@ function getSheet_() {
   if (sh.getLastRow() === 0) {
     sh.appendRow(HEADERS);
     sh.setFrozenRows(1);
-    // 날짜·기상 시각 열이 자동 변환되지 않도록 텍스트 서식 고정
-    sh.getRange('B:B').setNumberFormat('@');
-    sh.getRange('J:J').setNumberFormat('@');
   }
+  // 날짜·기상 시각 열이 자동 변환되지 않도록 텍스트 서식 고정 (기존 시트에도 매번 적용)
+  sh.getRange('B:B').setNumberFormat('@');
+  sh.getRange('J:J').setNumberFormat('@');
   return sh;
 }
 
@@ -133,13 +133,19 @@ function findRow_(sh, child, date) {
   return -1;
 }
 
-// 시트가 날짜/시각 문자열을 Date로 자동 변환한 경우까지 문자열로 복원
+// 시트가 날짜/시각 문자열을 Date로 자동 변환한 경우까지 문자열로 복원.
+// 변환된 Date는 "시트 시간대 기준의 값"이므로 반드시 시트 시간대로 되돌린다.
+// (스크립트 프로젝트 시간대가 미국 등으로 달라도 날짜가 밀리지 않도록)
+function sheetTz_() {
+  var tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  return tz || Session.getScriptTimeZone();
+}
 function dateStr_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (v instanceof Date) return Utilities.formatDate(v, sheetTz_(), 'yyyy-MM-dd');
   return String(v);
 }
 function timeStr_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'HH:mm');
+  if (v instanceof Date) return Utilities.formatDate(v, sheetTz_(), 'HH:mm');
   return String(v);
 }
 function boolLabel_(v, yes, no) {
