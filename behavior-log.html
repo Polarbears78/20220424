@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생활 약속 기록</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #2b3138;
+    --text-sub: #6b7480;
+    --line: #dfe3e8;
+    --accent: #3b5b7c;
+    --accent-soft: #e8eef4;
+    --ok: #2f7a4d;
+    --ok-bg: #e6f2ea;
+    --bad: #b0433a;
+    --bad-bg: #f7e9e7;
+    --none: #9aa1a9;
+    --none-bg: #eef0f2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 12px 48px; }
+
+  header {
+    padding: 18px 4px 12px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
+  header p { font-size: 12.5px; color: var(--text-sub); margin-top: 2px; }
+
+  /* 탭 */
+  nav {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  nav button {
+    flex: 1;
+    padding: 10px 4px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    color: var(--text-sub);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+  }
+  nav button.active {
+    color: var(--accent);
+    font-weight: 700;
+    border-bottom-color: var(--accent);
+  }
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 12px; color: var(--accent); }
+
+  /* 폼 */
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field > label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .field .hint { font-size: 12px; color: var(--text-sub); font-weight: 400; margin-top: 4px; }
+  input[type="date"], input[type="time"], input[type="number"], input[type="text"], select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .time-row { display: flex; gap: 8px; align-items: center; }
+  .time-row input { width: 80px; text-align: right; }
+  .time-row span { font-size: 14px; color: var(--text-sub); }
+
+  .seg { display: flex; gap: 8px; }
+  .seg label {
+    flex: 1;
+    display: block;
+    text-align: center;
+    padding: 9px 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    background: #fff;
+    color: var(--text-sub);
+    user-select: none;
+  }
+  .seg input { display: none; }
+  .seg input:checked + span { font-weight: 700; }
+  .seg label.on-ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+  .seg label.on-bad { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn:active { opacity: .85; }
+  .btn-sub {
+    background: var(--card);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn-sm {
+    display: inline-block;
+    width: auto;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .btn-danger {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--bad);
+  }
+
+  .save-msg {
+    text-align: center;
+    font-size: 13px;
+    color: var(--ok);
+    margin-top: 10px;
+    min-height: 18px;
+  }
+
+  /* 뱃지 */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .b-ok { background: var(--ok-bg); color: var(--ok); }
+  .b-bad { background: var(--bad-bg); color: var(--bad); }
+  .b-none { background: var(--none-bg); color: var(--none); }
+
+  /* 주간 */
+  .week-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .week-nav .label { font-size: 14px; font-weight: 700; }
+  .week-nav button {
+    padding: 6px 14px;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .banner {
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid #bcd9c6; }
+  .banner.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid #e3c1bd; }
+
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 6px 4px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  th { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  td.item-name { text-align: left; padding-left: 8px; background: #fafbfc; font-weight: 600; min-width: 84px; }
+  td.c-ok { color: var(--ok); background: var(--ok-bg); font-weight: 700; }
+  td.c-bad { color: var(--bad); background: var(--bad-bg); font-weight: 700; }
+  td.c-none { color: var(--none); }
+  th.today-col { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .stat-line { font-size: 13.5px; color: var(--text-sub); margin-top: 10px; }
+  .stat-line strong { color: var(--text); }
+
+  /* 전체 기록 */
+  .list-tools {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  .list-tools select { flex: 1; }
+  .rec {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .rec-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .rec-head .d { font-weight: 700; font-size: 14px; }
+  .rec-head .score { font-size: 13px; font-weight: 700; }
+  .score.s-ok { color: var(--ok); }
+  .score.s-mid { color: #a06a1f; }
+  .score.s-bad { color: var(--bad); }
+  .rec-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .rec-memo { font-size: 12.5px; color: var(--text-sub); margin-bottom: 8px; }
+  .rec-foot { display: flex; justify-content: flex-end; gap: 8px; }
+  .rec-foot button {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .rec-foot .edit { border: 1px solid var(--accent); background: none; color: var(--accent); }
+  .rec-foot .del { border: 1px solid var(--line); background: none; color: var(--bad); }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .summary-grid .cell {
+    background: #fafbfc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .cell .k { color: var(--text-sub); font-size: 12px; }
+  .cell .v { font-weight: 700; font-size: 14px; margin-top: 2px; }
+
+  .empty { text-align: center; color: var(--text-sub); font-size: 13.5px; padding: 24px 0; }
+
+  details.settings { margin-top: 4px; }
+  details.settings summary {
+    font-size: 13px;
+    color: var(--text-sub);
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  details.settings .inner {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0 4px;
+    font-size: 13.5px;
+  }
+  details.settings input { width: 90px; text-align: right; }
+
+  @media (min-width: 480px) {
+    .summary-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>생활 약속 기록</h1>
+    <p>일일 이행 기록 · 상담 자료 정리용</p>
+  </header>
+
+  <nav>
+    <button data-tab="input" class="active">오늘 입력</button>
+    <button data-tab="week">주간 현황</button>
+    <button data-tab="all">전체 기록</button>
+  </nav>
+
+  <!-- 탭 1: 오늘 입력 -->
+  <section id="tab-input" class="tab active">
+    <div class="card">
+      <div class="field">
+        <label for="f-date">날짜</label>
+        <input type="date" id="f-date">
+        <div class="hint" id="f-date-hint"></div>
+      </div>
+
+      <div class="field">
+        <label>기기 사용시간</label>
+        <div class="time-row">
+          <input type="number" id="f-st-h" min="0" max="24" inputmode="numeric" placeholder="0"><span>시간</span>
+          <input type="number" id="f-st-m" min="0" max="59" inputmode="numeric" placeholder="0"><span>분</span>
+        </div>
+        <div class="hint" id="f-st-hint"></div>
+      </div>
+
+      <div class="field">
+        <label>국영수 문제풀이 확인</label>
+        <div class="seg" id="f-study">
+          <label><input type="radio" name="study" value="1"><span>보여줌</span></label>
+          <label><input type="radio" name="study" value="0"><span>안 보여줌</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-wake">기상 시각</label>
+        <input type="time" id="f-wake">
+        <div class="hint" id="f-wake-hint"></div>
+      </div>
+
+      <div class="field">
+        <label>아침 준비·출발 이행</label>
+        <div class="seg" id="f-morning">
+          <label><input type="radio" name="morning" value="1"><span>이행</span></label>
+          <label><input type="radio" name="morning" value="0"><span>미이행</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>공기계 제출</label>
+        <div class="seg" id="f-device">
+          <label><input type="radio" name="device" value="1"><span>제출</span></label>
+          <label><input type="radio" name="device" value="0"><span>미제출</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>정보올림피아드 준비 확인</label>
+        <div class="seg" id="f-olympiad">
+          <label><input type="radio" name="olympiad" value="1"><span>함</span></label>
+          <label><input type="radio" name="olympiad" value="0"><span>안 함</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-memo">특이사항 <span style="font-weight:400;color:var(--text-sub)">(선택)</span></label>
+        <input type="text" id="f-memo" maxlength="120" placeholder="한 줄 메모">
+      </div>
+
+      <button class="btn" id="btn-save">저장</button>
+      <div class="save-msg" id="save-msg"></div>
+
+      <details class="settings">
+        <summary>설정</summary>
+        <div class="inner">
+          <span>기기 사용시간 이행 기준</span>
+          <input type="number" id="set-limit" min="0" max="1440" inputmode="numeric">
+          <span>분 이하</span>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 탭 2: 주간 현황 -->
+  <section id="tab-week" class="tab">
+    <div class="card">
+      <div class="week-nav">
+        <button id="week-prev">◀ 이전 주</button>
+        <div class="label" id="week-label"></div>
+        <button id="week-next">다음 주 ▶</button>
+      </div>
+      <div id="week-banner"></div>
+      <div class="table-scroll">
+        <table id="week-table"></table>
+      </div>
+      <div class="stat-line" id="week-stat"></div>
+    </div>
+  </section>
+
+  <!-- 탭 3: 전체 기록 -->
+  <section id="tab-all" class="tab">
+    <div class="list-tools">
+      <select id="month-filter"></select>
+      <button class="btn btn-sub btn-sm" id="btn-csv" style="width:auto">CSV 다운로드</button>
+    </div>
+    <div class="card" id="month-summary-card">
+      <h2 id="month-summary-title">월간 요약</h2>
+      <div class="summary-grid" id="month-summary"></div>
+    </div>
+    <div id="rec-list"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'behaviorLog';
+  var SETTINGS_KEY = 'behaviorLogSettings';
+  var WAKE_CUTOFF = '08:00';
+
+  // 판정 대상 5개 항목 정의 (표·CSV·요약에서 공통 사용)
+  var ITEMS = [
+    { key: 'screenTime',  name: '기기 사용시간', okLabel: '이행',  badLabel: '미이행' },
+    { key: 'studyShown',  name: '국영수 확인',   okLabel: '보여줌', badLabel: '안 보여줌' },
+    { key: 'morningReady',name: '아침 준비',     okLabel: '이행',  badLabel: '미이행' },
+    { key: 'deviceSubmit',name: '공기계 제출',   okLabel: '제출',  badLabel: '미제출' },
+    { key: 'olympiadPrep',name: '올림피아드 준비',okLabel: '함',    badLabel: '안 함' }
+  ];
+
+  // ---------- 저장소 ----------
+  function loadAll() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      var data = raw ? JSON.parse(raw) : {};
+      return (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+    } catch (e) { return {}; }
+  }
+  function saveAll(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+  function loadSettings() {
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      var s = raw ? JSON.parse(raw) : {};
+      if (typeof s.screenLimit !== 'number' || s.screenLimit < 0) s.screenLimit = 120;
+      return s;
+    } catch (e) { return { screenLimit: 120 }; }
+  }
+  function saveSettings(s) {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  }
+
+  var records = loadAll();   // { 'YYYY-MM-DD': record }
+  var settings = loadSettings();
+
+  // ---------- 유틸 ----------
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayStr() { return fmtDate(new Date()); }
+  function parseDate(s) {
+    var p = s.split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]);
+  }
+  function fmtMinutes(min) {
+    if (min == null) return '-';
+    var h = Math.floor(min / 60), m = min % 60;
+    if (h === 0) return m + '분';
+    return h + '시간 ' + (m > 0 ? m + '분' : '');
+  }
+  function timeToMin(hhmm) {
+    if (!hhmm) return null;
+    var p = hhmm.split(':');
+    return (+p[0]) * 60 + (+p[1]);
+  }
+  function minToTime(min) {
+    return pad(Math.floor(min / 60)) + ':' + pad(Math.round(min % 60));
+  }
+  var DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+  // 항목 이행 여부: true=이행, false=미이행, null=판정불가(미입력)
+  function judge(rec, key) {
+    if (!rec) return null;
+    if (key === 'screenTime') {
+      if (typeof rec.screenTime !== 'number') return null;
+      return rec.screenTime <= settings.screenLimit;
+    }
+    var v = rec[key];
+    return (v === true || v === false) ? v : null;
+  }
+  function dailyScore(rec) {
+    var ok = 0;
+    ITEMS.forEach(function (it) { if (judge(rec, it.key) === true) ok++; });
+    return ok;
+  }
+
+  // ---------- 탭 전환 ----------
+  var tabs = document.querySelectorAll('nav button');
+  tabs.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      tabs.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'week') renderWeek();
+      if (btn.dataset.tab === 'all') renderAll();
+    });
+  });
+
+  // ---------- 탭 1: 입력 폼 ----------
+  var elDate = document.getElementById('f-date');
+  var elStH = document.getElementById('f-st-h');
+  var elStM = document.getElementById('f-st-m');
+  var elWake = document.getElementById('f-wake');
+  var elMemo = document.getElementById('f-memo');
+  var elSaveMsg = document.getElementById('save-msg');
+  var elLimit = document.getElementById('set-limit');
+  var morningTouched = false; // 사용자가 아침 준비를 직접 선택했는지
+
+  elLimit.value = settings.screenLimit;
+  elLimit.addEventListener('change', function () {
+    var v = parseInt(elLimit.value, 10);
+    if (isNaN(v) || v < 0) { elLimit.value = settings.screenLimit; return; }
+    settings.screenLimit = v;
+    saveSettings(settings);
+    updateScreenHint();
+  });
+
+  function getRadio(name) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value === '1' : null;
+  }
+  function setRadio(name, val) {
+    document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
+      r.checked = (val === true && r.value === '1') || (val === false && r.value === '0');
+    });
+    styleSegs();
+  }
+  function styleSegs() {
+    document.querySelectorAll('.seg label').forEach(function (lb) {
+      var input = lb.querySelector('input');
+      lb.classList.remove('on-ok', 'on-bad');
+      if (input.checked) lb.classList.add(input.value === '1' ? 'on-ok' : 'on-bad');
+    });
+  }
+  document.querySelectorAll('.seg input').forEach(function (r) {
+    r.addEventListener('change', styleSegs);
+  });
+  document.querySelectorAll('input[name="morning"]').forEach(function (r) {
+    r.addEventListener('change', function () { morningTouched = true; });
+  });
+
+  function updateScreenHint() {
+    var h = parseInt(elStH.value, 10) || 0;
+    var m = parseInt(elStM.value, 10) || 0;
+    var hint = document.getElementById('f-st-hint');
+    if (elStH.value === '' && elStM.value === '') {
+      hint.textContent = '기준: ' + settings.screenLimit + '분 이하 이행';
+      hint.style.color = '';
+      return;
+    }
+    var total = h * 60 + m;
+    var ok = total <= settings.screenLimit;
+    hint.textContent = '총 ' + total + '분 → ' + (ok ? '이행' : '미이행') +
+      ' (기준 ' + settings.screenLimit + '분)';
+    hint.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+  }
+  elStH.addEventListener('input', updateScreenHint);
+  elStM.addEventListener('input', updateScreenHint);
+
+  // 기상 시각 → 아침 준비 자동 제안 (수동 선택 전까지만)
+  elWake.addEventListener('change', function () {
+    var hint = document.getElementById('f-wake-hint');
+    if (!elWake.value) { hint.textContent = ''; return; }
+    var suggest = elWake.value <= WAKE_CUTOFF;
+    hint.textContent = WAKE_CUTOFF + ' ' + (suggest ? '이전 기상 → "이행" 제안' : '이후 기상 → "미이행" 제안') +
+      (morningTouched ? ' (수동 선택 유지됨)' : '');
+    if (!morningTouched) setRadio('morning', suggest);
+  });
+
+  // 날짜 변경 시 해당 날짜 기록을 폼에 반영
+  function loadFormFor(dateStr) {
+    var rec = records[dateStr];
+    morningTouched = false;
+    document.getElementById('f-wake-hint').textContent = '';
+    var dateHint = document.getElementById('f-date-hint');
+    if (rec) {
+      elStH.value = typeof rec.screenTime === 'number' ? Math.floor(rec.screenTime / 60) : '';
+      elStM.value = typeof rec.screenTime === 'number' ? rec.screenTime % 60 : '';
+      elWake.value = rec.wakeTime || '';
+      elMemo.value = rec.memo || '';
+      setRadio('study', rec.studyShown);
+      setRadio('morning', rec.morningReady);
+      setRadio('device', rec.deviceSubmit);
+      setRadio('olympiad', rec.olympiadPrep);
+      morningTouched = (rec.morningReady === true || rec.morningReady === false);
+      dateHint.textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
+    } else {
+      elStH.value = ''; elStM.value = '';
+      elWake.value = ''; elMemo.value = '';
+      setRadio('study', null); setRadio('morning', null);
+      setRadio('device', null); setRadio('olympiad', null);
+      dateHint.textContent = '';
+    }
+    updateScreenHint();
+  }
+  elDate.value = todayStr();
+  elDate.addEventListener('change', function () {
+    if (elDate.value) loadFormFor(elDate.value);
+  });
+  loadFormFor(elDate.value);
+
+  document.getElementById('btn-save').addEventListener('click', function () {
+    var dateStr = elDate.value;
+    if (!dateStr) { alert('날짜를 선택해 주세요.'); return; }
+
+    var hasSt = elStH.value !== '' || elStM.value !== '';
+    var h = parseInt(elStH.value, 10) || 0;
+    var m = parseInt(elStM.value, 10) || 0;
+
+    var rec = {
+      date: dateStr,
+      screenTime: hasSt ? h * 60 + m : null,
+      studyShown: getRadio('study'),
+      wakeTime: elWake.value || null,
+      morningReady: getRadio('morning'),
+      deviceSubmit: getRadio('device'),
+      olympiadPrep: getRadio('olympiad'),
+      memo: elMemo.value.trim() || null
+    };
+
+    if (records[dateStr]) {
+      if (!confirm(dateStr + ' 기록이 이미 있습니다. 덮어쓸까요?')) return;
+    }
+    records[dateStr] = rec;
+    saveAll(records);
+    elSaveMsg.textContent = dateStr + ' 저장 완료 (이행 ' + dailyScore(rec) + '/5)';
+    document.getElementById('f-date-hint').textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
+    setTimeout(function () { elSaveMsg.textContent = ''; }, 3000);
+  });
+
+  // ---------- 탭 2: 주간 현황 ----------
+  // weekStart: 해당 주 월요일 Date
+  function mondayOf(d) {
+    var day = d.getDay(); // 0=일
+    var diff = (day === 0 ? -6 : 1 - day);
+    var m = new Date(d);
+    m.setDate(d.getDate() + diff);
+    return m;
+  }
+  var weekStart = mondayOf(new Date());
+
+  document.getElementById('week-prev').addEventListener('click', function () {
+    weekStart.setDate(weekStart.getDate() - 7);
+    renderWeek();
+  });
+  document.getElementById('week-next').addEventListener('click', function () {
+    weekStart.setDate(weekStart.getDate() + 7);
+    renderWeek();
+  });
+
+  function renderWeek() {
+    var days = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      days.push(d);
+    }
+    var end = days[6];
+    document.getElementById('week-label').textContent =
+      (weekStart.getMonth() + 1) + '/' + weekStart.getDate() + ' ~ ' +
+      (end.getMonth() + 1) + '/' + end.getDate();
+
+    var today = todayStr();
+
+    // 표
+    var html = '<tr><th></th>';
+    days.forEach(function (d) {
+      var isToday = fmtDate(d) === today;
+      html += '<th' + (isToday ? ' class="today-col"' : '') + '>' +
+        DAY_NAMES[d.getDay()] + '<br>' + (d.getMonth() + 1) + '/' + d.getDate() + '</th>';
+    });
+    html += '</tr>';
+
+    ITEMS.forEach(function (it) {
+      html += '<tr><td class="item-name">' + it.name + '</td>';
+      days.forEach(function (d) {
+        var rec = records[fmtDate(d)];
+        var j = judge(rec, it.key);
+        if (j === true) html += '<td class="c-ok">이행</td>';
+        else if (j === false) html += '<td class="c-bad">미이행</td>';
+        else html += '<td class="c-none">－</td>';
+      });
+      html += '</tr>';
+    });
+
+    // 일일 요약 행
+    html += '<tr><td class="item-name">이행 개수</td>';
+    days.forEach(function (d) {
+      var rec = records[fmtDate(d)];
+      html += rec ? '<td>' + dailyScore(rec) + '/5</td>' : '<td class="c-none">－</td>';
+    });
+    html += '</tr>';
+    document.getElementById('week-table').innerHTML = html;
+
+    // 아침 준비 주간 판정 배너
+    var morningOk = 0;
+    days.forEach(function (d) {
+      if (judge(records[fmtDate(d)], 'morningReady') === true) morningOk++;
+    });
+    var met = morningOk >= 4;
+    document.getElementById('week-banner').innerHTML =
+      '<div class="banner ' + (met ? 'ok' : 'bad') + '">아침 준비: 주 ' + morningOk + '일 이행 → ' +
+      (met ? '주간 기준 충족 (4일 이상)' : '주간 기준 미달 (4일 미만)') + '</div>';
+
+    // 주간 평균 사용시간
+    var stSum = 0, stCnt = 0;
+    days.forEach(function (d) {
+      var rec = records[fmtDate(d)];
+      if (rec && typeof rec.screenTime === 'number') { stSum += rec.screenTime; stCnt++; }
+    });
+    document.getElementById('week-stat').innerHTML = stCnt > 0
+      ? '주간 평균 사용시간: <strong>' + fmtMinutes(Math.round(stSum / stCnt)) + '</strong> (' + stCnt + '일 입력)'
+      : '주간 평균 사용시간: 입력된 기록 없음';
+  }
+
+  // ---------- 탭 3: 전체 기록 ----------
+  var monthFilter = document.getElementById('month-filter');
+  var currentMonth = 'all';
+
+  monthFilter.addEventListener('change', function () {
+    currentMonth = monthFilter.value;
+    renderAll();
+  });
+
+  function sortedDatesDesc() {
+    return Object.keys(records).sort().reverse();
+  }
+
+  function renderAll() {
+    var dates = sortedDatesDesc();
+
+    // 월 필터 옵션 재구성
+    var months = [];
+    dates.forEach(function (d) {
+      var m = d.slice(0, 7);
+      if (months.indexOf(m) === -1) months.push(m);
+    });
+    var opts = '<option value="all">전체 기간</option>';
+    months.forEach(function (m) {
+      opts += '<option value="' + m + '">' + m.replace('-', '년 ') + '월</option>';
+    });
+    monthFilter.innerHTML = opts;
+    if (currentMonth !== 'all' && months.indexOf(currentMonth) === -1) currentMonth = 'all';
+    monthFilter.value = currentMonth;
+
+    var filtered = dates.filter(function (d) {
+      return currentMonth === 'all' || d.slice(0, 7) === currentMonth;
+    });
+
+    renderSummary(filtered);
+    renderList(filtered);
+  }
+
+  function renderSummary(dates) {
+    var title = currentMonth === 'all' ? '전체 요약' : currentMonth.replace('-', '년 ') + '월 요약';
+    document.getElementById('month-summary-title').textContent = title;
+    var box = document.getElementById('month-summary');
+
+    if (dates.length === 0) {
+      box.innerHTML = '<div class="cell" style="grid-column:1/-1"><div class="k">기록 없음</div></div>';
+      return;
+    }
+
+    var html = '';
+    ITEMS.forEach(function (it) {
+      var ok = 0, cnt = 0;
+      dates.forEach(function (d) {
+        var j = judge(records[d], it.key);
+        if (j !== null) { cnt++; if (j) ok++; }
+      });
+      var rate = cnt > 0 ? Math.round(ok / cnt * 100) + '%' : '-';
+      html += '<div class="cell"><div class="k">' + it.name + ' 이행률</div><div class="v">' +
+        rate + (cnt > 0 ? ' <span style="font-weight:400;font-size:12px;color:var(--text-sub)">(' + ok + '/' + cnt + ')</span>' : '') +
+        '</div></div>';
+    });
+
+    var stSum = 0, stCnt = 0, wkSum = 0, wkCnt = 0;
+    dates.forEach(function (d) {
+      var r = records[d];
+      if (typeof r.screenTime === 'number') { stSum += r.screenTime; stCnt++; }
+      var wm = timeToMin(r.wakeTime);
+      if (wm !== null) { wkSum += wm; wkCnt++; }
+    });
+    html += '<div class="cell"><div class="k">평균 사용시간</div><div class="v">' +
+      (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) : '-') + '</div></div>';
+    html += '<div class="cell"><div class="k">평균 기상 시각</div><div class="v">' +
+      (wkCnt > 0 ? minToTime(wkSum / wkCnt) : '-') + '</div></div>';
+    html += '<div class="cell"><div class="k">기록 일수</div><div class="v">' + dates.length + '일</div></div>';
+    box.innerHTML = html;
+  }
+
+  function badgeFor(rec, it) {
+    var j = judge(rec, it.key);
+    if (j === true) return '<span class="badge b-ok">' + it.name + ' · ' + it.okLabel + '</span>';
+    if (j === false) return '<span class="badge b-bad">' + it.name + ' · ' + it.badLabel + '</span>';
+    return '<span class="badge b-none">' + it.name + ' · 미입력</span>';
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function renderList(dates) {
+    var box = document.getElementById('rec-list');
+    if (dates.length === 0) {
+      box.innerHTML = '<div class="empty">기록이 없습니다. [오늘 입력] 탭에서 첫 기록을 저장해 보세요.</div>';
+      return;
+    }
+    var html = '';
+    dates.forEach(function (d) {
+      var rec = records[d];
+      var score = dailyScore(rec);
+      var scoreCls = score >= 4 ? 's-ok' : (score >= 2 ? 's-mid' : 's-bad');
+      var dt = parseDate(d);
+      var detail = [];
+      if (typeof rec.screenTime === 'number') detail.push('사용 ' + fmtMinutes(rec.screenTime));
+      if (rec.wakeTime) detail.push('기상 ' + rec.wakeTime);
+
+      html += '<div class="rec">' +
+        '<div class="rec-head"><span class="d">' + d + ' (' + DAY_NAMES[dt.getDay()] + ')' +
+        (detail.length ? ' <span style="font-weight:400;font-size:12px;color:var(--text-sub)">' + detail.join(' · ') + '</span>' : '') +
+        '</span><span class="score ' + scoreCls + '">' + score + '/5</span></div>' +
+        '<div class="rec-items">' + ITEMS.map(function (it) { return badgeFor(rec, it); }).join('') + '</div>' +
+        (rec.memo ? '<div class="rec-memo">메모: ' + escapeHtml(rec.memo) + '</div>' : '') +
+        '<div class="rec-foot">' +
+        '<button class="edit" data-date="' + d + '">수정</button>' +
+        '<button class="del" data-date="' + d + '">삭제</button>' +
+        '</div></div>';
+    });
+    box.innerHTML = html;
+
+    box.querySelectorAll('.del').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var d = b.dataset.date;
+        if (!confirm(d + ' 기록을 삭제할까요? 되돌릴 수 없습니다.')) return;
+        delete records[d];
+        saveAll(records);
+        renderAll();
+      });
+    });
+    box.querySelectorAll('.edit').forEach(function (b) {
+      b.addEventListener('click', function () {
+        elDate.value = b.dataset.date;
+        loadFormFor(b.dataset.date);
+        tabs[0].click();
+        window.scrollTo(0, 0);
+      });
+    });
+  }
+
+  // ---------- CSV 다운로드 ----------
+  document.getElementById('btn-csv').addEventListener('click', function () {
+    var dates = sortedDatesDesc().filter(function (d) {
+      return currentMonth === 'all' || d.slice(0, 7) === currentMonth;
+    }).reverse(); // CSV는 날짜 오름차순
+
+    if (dates.length === 0) { alert('다운로드할 기록이 없습니다.'); return; }
+
+    function csvCell(v) {
+      if (v == null) v = '';
+      v = String(v);
+      if (/[",\n]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
+      return v;
+    }
+    function judgeText(rec, key) {
+      var j = judge(rec, key);
+      return j === true ? '이행' : (j === false ? '미이행' : '미입력');
+    }
+
+    var rows = [['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인', '기상시각',
+                 '아침준비', '공기계 제출', '올림피아드 준비', '이행수(5개 기준)', '특이사항']];
+    dates.forEach(function (d) {
+      var r = records[d];
+      rows.push([
+        d,
+        DAY_NAMES[parseDate(d).getDay()],
+        typeof r.screenTime === 'number' ? r.screenTime : '',
+        judgeText(r, 'screenTime'),
+        r.studyShown === true ? '보여줌' : (r.studyShown === false ? '안 보여줌' : '미입력'),
+        r.wakeTime || '',
+        judgeText(r, 'morningReady'),
+        r.deviceSubmit === true ? '제출' : (r.deviceSubmit === false ? '미제출' : '미입력'),
+        r.olympiadPrep === true ? '함' : (r.olympiadPrep === false ? '안 함' : '미입력'),
+        dailyScore(r) + '/5',
+        r.memo || ''
+      ]);
+    });
+
+    var csv = rows.map(function (row) { return row.map(csvCell).join(','); }).join('\r\n');
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '생활약속기록_' + (currentMonth === 'all' ? '전체' : currentMonth) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  });
+
+  // 초기 렌더
+  renderWeek();
+  renderAll();
+})();
+</script>
+</body>
+</html>
