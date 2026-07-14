@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생활 약속 확인</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #2b3138;
+    --text-sub: #6b7480;
+    --line: #dfe3e8;
+    --accent: #3b5b7c;
+    --accent-soft: #e8eef4;
+    --ok: #2f7a4d;
+    --ok-bg: #e6f2ea;
+    --bad: #b0433a;
+    --bad-bg: #f7e9e7;
+    --none: #9aa1a9;
+    --none-bg: #eef0f2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 12px 48px; }
+  header { padding: 18px 4px 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
+  header .sub { font-size: 12px; color: var(--text-sub); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 12px; color: var(--accent); }
+
+  .child-switch { display: flex; gap: 8px; margin-bottom: 12px; }
+  .child-switch button {
+    flex: 1; padding: 8px 4px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; color: var(--text-sub);
+    font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .child-switch button.active {
+    border-color: var(--accent); background: var(--accent-soft);
+    color: var(--accent); font-weight: 700;
+  }
+
+  .field { margin-bottom: 12px; }
+  .field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  input[type="url"], input[type="text"] {
+    width: 100%; padding: 9px 10px;
+    border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .btn {
+    display: block; width: 100%; padding: 12px;
+    border: none; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .btn-sm {
+    display: inline-block; width: auto; padding: 6px 12px;
+    font-size: 13px; font-weight: 600;
+    background: var(--card); color: var(--accent); border: 1px solid var(--accent);
+  }
+  .status { font-size: 12.5px; margin-top: 8px; min-height: 18px; }
+
+  .today-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .today-head .d { font-size: 15px; font-weight: 700; color: var(--accent); }
+  .today-score { font-size: 15px; font-weight: 700; }
+  .s-ok { color: var(--ok); }
+  .s-mid { color: #a06a1f; }
+  .s-bad { color: var(--bad); }
+
+  .item-list { display: flex; flex-direction: column; gap: 8px; }
+  .item-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px;
+  }
+  .item-row.ok { border-color: #bcd9c6; background: var(--ok-bg); }
+  .item-row.bad { border-color: #e3c1bd; background: var(--bad-bg); }
+  .item-row .v { font-weight: 700; font-size: 13px; }
+  .item-row.ok .v { color: var(--ok); }
+  .item-row.bad .v { color: var(--bad); }
+  .item-row.none .v { color: var(--none); }
+  .study-line { font-size: 13px; color: var(--text-sub); margin-top: 10px; }
+  .study-line strong { color: var(--text); }
+
+  .week-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .week-nav .label { font-size: 14px; font-weight: 700; }
+  .week-nav button {
+    padding: 6px 14px; border: 1px solid var(--line); background: #fff;
+    border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text); font-family: inherit;
+  }
+  .banner {
+    padding: 10px 12px; border-radius: 8px;
+    font-size: 13.5px; font-weight: 600; margin-bottom: 12px;
+  }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid #bcd9c6; }
+  .banner.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid #e3c1bd; }
+
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { border: 1px solid var(--line); padding: 6px 4px; text-align: center; white-space: nowrap; }
+  th { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  th.today-col { outline: 2px solid var(--accent); outline-offset: -2px; }
+  td.item-name { text-align: left; padding-left: 8px; background: #fafbfc; font-weight: 600; min-width: 84px; }
+  td.c-ok { color: var(--ok); background: var(--ok-bg); font-weight: 700; }
+  td.c-bad { color: var(--bad); background: var(--bad-bg); font-weight: 700; }
+  td.c-none { color: var(--none); }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .toolbar .info { font-size: 12px; color: var(--text-sub); }
+  .settings-link {
+    font-size: 12px; color: var(--text-sub);
+    background: none; border: none; text-decoration: underline;
+    cursor: pointer; font-family: inherit; padding: 4px;
+  }
+  .empty { text-align: center; color: var(--text-sub); font-size: 13.5px; padding: 18px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>생활 약속 확인</h1>
+    <span class="sub">조회 전용</span>
+  </header>
+
+  <!-- 연결 설정 -->
+  <section id="setup" class="card" style="display:none">
+    <h2>연결 설정</h2>
+    <div class="field">
+      <label for="s-url">서버 주소 (부모님이 알려준 URL)</label>
+      <input type="url" id="s-url" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+    <div class="field">
+      <label for="s-token">조회 코드</label>
+      <input type="text" id="s-token" placeholder="부모님이 알려준 조회 코드">
+    </div>
+    <button class="btn" id="btn-connect">연결하기</button>
+    <div class="status" id="setup-msg"></div>
+  </section>
+
+  <!-- 조회 화면 -->
+  <section id="main" style="display:none">
+    <div class="child-switch" id="child-switch"></div>
+
+    <div class="toolbar">
+      <span class="info" id="refresh-info"></span>
+      <span>
+        <button class="btn btn-sm" id="btn-refresh">새로고침</button>
+        <button class="settings-link" id="btn-settings">연결 설정</button>
+      </span>
+    </div>
+
+    <div class="card">
+      <div class="today-head">
+        <span class="d" id="today-date"></span>
+        <span class="today-score" id="today-score"></span>
+      </div>
+      <div class="item-list" id="today-items"></div>
+      <div class="study-line" id="today-study"></div>
+    </div>
+
+    <div class="card">
+      <div class="week-nav">
+        <button id="week-prev">◀ 이전 주</button>
+        <div class="label" id="week-label"></div>
+        <button id="week-next">다음 주 ▶</button>
+      </div>
+      <div id="week-banner"></div>
+      <div class="table-scroll"><table id="week-table"></table></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var SETTINGS_KEY = 'behaviorViewSettings';
+  var CACHE_PREFIX = 'behaviorViewCache:';
+  var SCREEN_LIMIT = 120; // 기기 사용시간 이행 기준(분) — 부모 앱 기본값과 동일
+
+  var CHILDREN = ['김민우', '김민준'];
+  var ITEMS = [
+    { key: 'screenTime',  name: '기기 사용시간', okLabel: '이행',  badLabel: '미이행' },
+    { key: 'studyShown',  name: '국영수 확인',   okLabel: '보여줌', badLabel: '안 보여줌' },
+    { key: 'morningReady',name: '아침 준비',     okLabel: '이행',  badLabel: '미이행' },
+    { key: 'deviceSubmit',name: '공기계 제출',   okLabel: '제출',  badLabel: '미제출' },
+    { key: 'olympiadPrep',name: '올림피아드 준비',okLabel: '함',    badLabel: '안 함' }
+  ];
+  var CHILD_ITEM_KEYS = {
+    '김민우': ['screenTime', 'studyShown', 'morningReady', 'deviceSubmit', 'olympiadPrep'],
+    '김민준': ['screenTime', 'studyShown', 'morningReady']
+  };
+  var SUBJECTS = [
+    { key: 'koreanCount', name: '국어' },
+    { key: 'mathCount', name: '수학' },
+    { key: 'englishCount', name: '영어' }
+  ];
+
+  function loadSettings() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+
+  var settings = loadSettings();
+  var activeChild = CHILDREN.indexOf(settings.child) !== -1 ? settings.child : CHILDREN[0];
+  var records = {}; // 현재 자녀의 { date: record }
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayStr() { return fmtDate(new Date()); }
+  function fmtMinutes(min) {
+    var h = Math.floor(min / 60), m = min % 60;
+    if (h === 0) return m + '분';
+    return h + '시간' + (m > 0 ? ' ' + m + '분' : '');
+  }
+  var DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+  function activeItems() {
+    var keys = CHILD_ITEM_KEYS[activeChild] || CHILD_ITEM_KEYS[CHILDREN[0]];
+    return ITEMS.filter(function (it) { return keys.indexOf(it.key) !== -1; });
+  }
+  function judge(rec, key) {
+    if (!rec) return null;
+    if (key === 'screenTime') {
+      if (typeof rec.screenTime !== 'number') return null;
+      return rec.screenTime <= SCREEN_LIMIT;
+    }
+    var v = rec[key];
+    return (v === true || v === false) ? v : null;
+  }
+  function dailyScore(rec) {
+    var ok = 0;
+    activeItems().forEach(function (it) { if (judge(rec, it.key) === true) ok++; });
+    return ok;
+  }
+  function problemTotal(rec) {
+    if (!rec) return null;
+    var sum = 0, has = false;
+    SUBJECTS.forEach(function (s) {
+      if (typeof rec[s.key] === 'number') { sum += rec[s.key]; has = true; }
+    });
+    if (has) return sum;
+    return typeof rec.problemCount === 'number' ? rec.problemCount : null;
+  }
+
+  // ---------- 서버 조회 ----------
+  function configured() { return !!(settings.url && settings.token); }
+  function cacheKey() { return CACHE_PREFIX + activeChild; }
+  function loadCache() {
+    try { return JSON.parse(localStorage.getItem(cacheKey())) || {}; }
+    catch (e) { return {}; }
+  }
+
+  function fetchRecords(onDone) {
+    var child = activeChild;
+    fetch(settings.url + '?token=' + encodeURIComponent(settings.token) +
+          '&child=' + encodeURIComponent(child))
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || '서버 오류');
+        if (child !== activeChild) return;
+        records = {};
+        (data.records || []).forEach(function (r) { if (r && r.date) records[r.date] = r; });
+        localStorage.setItem(cacheKey(), JSON.stringify(records));
+        localStorage.setItem(cacheKey() + ':at', new Date().toISOString());
+        onDone(null);
+      })
+      .catch(function (e) {
+        records = loadCache(); // 오프라인이면 마지막 캐시로 표시
+        onDone(e && e.message === 'unauthorized' ? '조회 코드가 올바르지 않습니다.' : '불러오기 실패 — 마지막으로 본 기록을 표시합니다.');
+      });
+  }
+
+  // ---------- 화면 ----------
+  function show(id, on) { document.getElementById(id).style.display = on ? '' : 'none'; }
+
+  function renderChildSwitch() {
+    var box = document.getElementById('child-switch');
+    box.innerHTML = '';
+    CHILDREN.forEach(function (name) {
+      var b = document.createElement('button');
+      b.textContent = name;
+      if (name === activeChild) b.className = 'active';
+      b.addEventListener('click', function () {
+        if (name === activeChild) return;
+        activeChild = name;
+        settings.child = name;
+        saveSettings(settings);
+        records = loadCache();
+        renderChildSwitch();
+        renderAll();
+        refresh();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderToday() {
+    var t = todayStr();
+    var rec = records[t];
+    var d = new Date();
+    document.getElementById('today-date').textContent =
+      '오늘 ' + (d.getMonth() + 1) + '/' + d.getDate() + ' (' + DAY_NAMES[d.getDay()] + ')';
+
+    var scoreEl = document.getElementById('today-score');
+    var items = activeItems();
+    if (rec) {
+      var score = dailyScore(rec);
+      var cls = score >= items.length * 0.8 ? 's-ok' : (score >= items.length * 0.4 ? 's-mid' : 's-bad');
+      scoreEl.textContent = score + '/' + items.length;
+      scoreEl.className = 'today-score ' + cls;
+    } else {
+      scoreEl.textContent = '';
+    }
+
+    var box = document.getElementById('today-items');
+    if (!rec) {
+      box.innerHTML = '<div class="empty">아직 오늘 기록이 없어요.</div>';
+      document.getElementById('today-study').textContent = '';
+      return;
+    }
+    var html = '';
+    items.forEach(function (it) {
+      var j = judge(rec, it.key);
+      var cls = j === true ? 'ok' : (j === false ? 'bad' : 'none');
+      var label = j === true ? it.okLabel : (j === false ? it.badLabel : '미입력');
+      var extra = '';
+      if (it.key === 'screenTime' && typeof rec.screenTime === 'number') {
+        extra = ' <span style="font-weight:400;color:var(--text-sub);font-size:12px">(' + fmtMinutes(rec.screenTime) + ')</span>';
+      }
+      if (it.key === 'morningReady' && rec.wakeTime) {
+        extra = ' <span style="font-weight:400;color:var(--text-sub);font-size:12px">(기상 ' + rec.wakeTime + ')</span>';
+      }
+      html += '<div class="item-row ' + cls + '"><span>' + it.name + extra + '</span><span class="v">' + label + '</span></div>';
+    });
+    box.innerHTML = html;
+
+    var study = [];
+    var pt = problemTotal(rec);
+    if (pt !== null) study.push('풀이 <strong>' + pt + '문항</strong>');
+    if (typeof rec.wordCount === 'number') study.push('암기 <strong>' + rec.wordCount + '개</strong>');
+    document.getElementById('today-study').innerHTML = study.length ? '오늘 학습량: ' + study.join(' · ') : '';
+  }
+
+  function mondayOf(d) {
+    var day = d.getDay();
+    var m = new Date(d);
+    m.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return m;
+  }
+  var weekStart = mondayOf(new Date());
+
+  function renderWeek() {
+    var days = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      days.push(d);
+    }
+    var end = days[6];
+    document.getElementById('week-label').textContent =
+      (weekStart.getMonth() + 1) + '/' + weekStart.getDate() + ' ~ ' +
+      (end.getMonth() + 1) + '/' + end.getDate();
+
+    var t = todayStr();
+    var html = '<tr><th></th>';
+    days.forEach(function (d) {
+      html += '<th' + (fmtDate(d) === t ? ' class="today-col"' : '') + '>' +
+        DAY_NAMES[d.getDay()] + '<br>' + (d.getMonth() + 1) + '/' + d.getDate() + '</th>';
+    });
+    html += '</tr>';
+
+    activeItems().forEach(function (it) {
+      html += '<tr><td class="item-name">' + it.name + '</td>';
+      days.forEach(function (d) {
+        var j = judge(records[fmtDate(d)], it.key);
+        if (j === true) html += '<td class="c-ok">이행</td>';
+        else if (j === false) html += '<td class="c-bad">미이행</td>';
+        else html += '<td class="c-none">－</td>';
+      });
+      html += '</tr>';
+    });
+    html += '<tr><td class="item-name">이행 개수</td>';
+    days.forEach(function (d) {
+      var rec = records[fmtDate(d)];
+      html += rec ? '<td>' + dailyScore(rec) + '/' + activeItems().length + '</td>' : '<td class="c-none">－</td>';
+    });
+    html += '</tr>';
+    document.getElementById('week-table').innerHTML = html;
+
+    var morningOk = 0;
+    days.forEach(function (d) {
+      if (judge(records[fmtDate(d)], 'morningReady') === true) morningOk++;
+    });
+    var met = morningOk >= 4;
+    document.getElementById('week-banner').innerHTML =
+      '<div class="banner ' + (met ? 'ok' : 'bad') + '">아침 준비: 주 ' + morningOk + '일 이행 → ' +
+      (met ? '주간 기준 충족 (4일 이상)' : '주간 기준 미달 (4일 미만)') + '</div>';
+  }
+
+  document.getElementById('week-prev').addEventListener('click', function () {
+    weekStart.setDate(weekStart.getDate() - 7);
+    renderWeek();
+  });
+  document.getElementById('week-next').addEventListener('click', function () {
+    weekStart.setDate(weekStart.getDate() + 7);
+    renderWeek();
+  });
+
+  function renderAll() {
+    renderToday();
+    renderWeek();
+  }
+
+  function setRefreshInfo(err) {
+    var el = document.getElementById('refresh-info');
+    if (err) {
+      el.textContent = err;
+      el.style.color = 'var(--bad)';
+      return;
+    }
+    el.style.color = '';
+    var at = localStorage.getItem(cacheKey() + ':at');
+    if (at) {
+      var d = new Date(at);
+      el.textContent = '업데이트: ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    } else {
+      el.textContent = '';
+    }
+  }
+
+  function refresh() {
+    document.getElementById('refresh-info').textContent = '불러오는 중…';
+    fetchRecords(function (err) {
+      renderAll();
+      setRefreshInfo(err);
+    });
+  }
+
+  // ---------- 연결 설정 ----------
+  function openSetup() {
+    show('setup', true);
+    show('main', false);
+    document.getElementById('s-url').value = settings.url || '';
+    document.getElementById('s-token').value = settings.token || '';
+  }
+  function openMain() {
+    show('setup', false);
+    show('main', true);
+    renderChildSwitch();
+    records = loadCache();
+    renderAll();
+    refresh();
+  }
+
+  document.getElementById('btn-connect').addEventListener('click', function () {
+    var url = document.getElementById('s-url').value.trim();
+    var token = document.getElementById('s-token').value.trim();
+    var msg = document.getElementById('setup-msg');
+    if (!url || !token) {
+      msg.textContent = '서버 주소와 조회 코드를 모두 입력해 주세요.';
+      msg.style.color = 'var(--bad)';
+      return;
+    }
+    msg.textContent = '연결 확인 중…';
+    msg.style.color = '';
+    fetch(url + '?token=' + encodeURIComponent(token) + '&child=' + encodeURIComponent(activeChild))
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || '서버 오류');
+        settings.url = url;
+        settings.token = token;
+        saveSettings(settings);
+        openMain();
+      })
+      .catch(function (e) {
+        msg.textContent = (e && e.message === 'unauthorized')
+          ? '조회 코드가 올바르지 않습니다.'
+          : '연결 실패 — 주소를 다시 확인해 주세요.';
+        msg.style.color = 'var(--bad)';
+      });
+  });
+
+  document.getElementById('btn-refresh').addEventListener('click', refresh);
+  document.getElementById('btn-settings').addEventListener('click', openSetup);
+
+  if (configured()) openMain();
+  else openSetup();
+})();
+</script>
+</body>
+</html>
