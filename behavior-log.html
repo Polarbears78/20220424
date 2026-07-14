@@ -379,7 +379,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-device">
         <label>공기계 제출</label>
         <div class="seg" id="f-device">
           <label><input type="radio" name="device" value="1"><span>제출</span></label>
@@ -387,7 +387,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-olympiad">
         <label>정보올림피아드 준비 확인</label>
         <div class="seg" id="f-olympiad">
           <label><input type="radio" name="olympiad" value="1"><span>함</span></label>
@@ -481,6 +481,20 @@
     { key: 'wordCount',    name: '암기 단어', unit: '개' }
   ];
 
+  // 자녀별 판정 항목 구성: 김민준은 공기계 제출·올림피아드 준비 제외
+  var CHILD_ITEM_KEYS = {
+    '김민우': ['screenTime', 'studyShown', 'morningReady', 'deviceSubmit', 'olympiadPrep'],
+    '김민준': ['screenTime', 'studyShown', 'morningReady']
+  };
+  function activeItems() {
+    var keys = CHILD_ITEM_KEYS[activeChild] || CHILD_ITEM_KEYS[CHILDREN[0]];
+    return ITEMS.filter(function (it) { return keys.indexOf(it.key) !== -1; });
+  }
+  function hasItem(key) {
+    return activeItems().some(function (it) { return it.key === key; });
+  }
+  function maxScore() { return activeItems().length; }
+
   // ---------- 저장소 ----------
   function loadAll() {
     try {
@@ -554,7 +568,7 @@
 
   function dailyScore(rec) {
     var ok = 0;
-    ITEMS.forEach(function (it) { if (judge(rec, it.key) === true) ok++; });
+    activeItems().forEach(function (it) { if (judge(rec, it.key) === true) ok++; });
     return ok;
   }
 
@@ -695,8 +709,8 @@
       wordCount: elWord.value !== '' ? Math.max(0, parseInt(elWord.value, 10) || 0) : null,
       wakeTime: elWake.value || null,
       morningReady: getRadio('morning'),
-      deviceSubmit: getRadio('device'),
-      olympiadPrep: getRadio('olympiad'),
+      deviceSubmit: hasItem('deviceSubmit') ? getRadio('device') : null,
+      olympiadPrep: hasItem('olympiadPrep') ? getRadio('olympiad') : null,
       memo: elMemo.value.trim() || null
     };
 
@@ -705,7 +719,7 @@
     }
     records[dateStr] = rec;
     saveAll(records);
-    elSaveMsg.textContent = activeChild + ' ' + dateStr + ' 저장 완료 (이행 ' + dailyScore(rec) + '/5)';
+    elSaveMsg.textContent = activeChild + ' ' + dateStr + ' 저장 완료 (이행 ' + dailyScore(rec) + '/' + maxScore() + ')';
     document.getElementById('f-date-hint').textContent = '저장된 기록을 불러왔습니다. 저장 시 덮어씁니다.';
     setTimeout(function () { elSaveMsg.textContent = ''; }, 3000);
   });
@@ -753,7 +767,7 @@
     });
     html += '</tr>';
 
-    ITEMS.forEach(function (it) {
+    activeItems().forEach(function (it) {
       html += '<tr><td class="item-name">' + it.name + '</td>';
       days.forEach(function (d) {
         var rec = records[fmtDate(d)];
@@ -780,7 +794,7 @@
     html += '<tr><td class="item-name">이행 개수</td>';
     days.forEach(function (d) {
       var rec = records[fmtDate(d)];
-      html += rec ? '<td>' + dailyScore(rec) + '/5</td>' : '<td class="c-none">－</td>';
+      html += rec ? '<td>' + dailyScore(rec) + '/' + maxScore() + '</td>' : '<td class="c-none">－</td>';
     });
     html += '</tr>';
     document.getElementById('week-table').innerHTML = html;
@@ -865,7 +879,7 @@
     }
 
     var html = '';
-    ITEMS.forEach(function (it) {
+    activeItems().forEach(function (it) {
       var ok = 0, cnt = 0;
       dates.forEach(function (d) {
         var j = judge(records[d], it.key);
@@ -920,7 +934,8 @@
     dates.forEach(function (d) {
       var rec = records[d];
       var score = dailyScore(rec);
-      var scoreCls = score >= 4 ? 's-ok' : (score >= 2 ? 's-mid' : 's-bad');
+      var total = maxScore();
+      var scoreCls = score >= total * 0.8 ? 's-ok' : (score >= total * 0.4 ? 's-mid' : 's-bad');
       var dt = parseDate(d);
       var detail = [];
       if (typeof rec.screenTime === 'number') detail.push('사용 ' + fmtMinutes(rec.screenTime));
@@ -931,8 +946,8 @@
       html += '<div class="rec">' +
         '<div class="rec-head"><span class="d">' + d + ' (' + DAY_NAMES[dt.getDay()] + ')' +
         (detail.length ? ' <span style="font-weight:400;font-size:12px;color:var(--text-sub)">' + detail.join(' · ') + '</span>' : '') +
-        '</span><span class="score ' + scoreCls + '">' + score + '/5</span></div>' +
-        '<div class="rec-items">' + ITEMS.map(function (it) { return badgeFor(rec, it); }).join('') + '</div>' +
+        '</span><span class="score ' + scoreCls + '">' + score + '/' + total + '</span></div>' +
+        '<div class="rec-items">' + activeItems().map(function (it) { return badgeFor(rec, it); }).join('') + '</div>' +
         (rec.memo ? '<div class="rec-memo">메모: ' + escapeHtml(rec.memo) + '</div>' : '') +
         '<div class="rec-foot">' +
         '<button class="edit" data-date="' + d + '">수정</button>' +
@@ -1013,7 +1028,7 @@
     lines.push('기록 ' + recorded.length + '일 / 7일');
     lines.push('');
 
-    ITEMS.forEach(function (it) {
+    activeItems().forEach(function (it) {
       var c = judgedCount(dayStrs, it.key);
       var line = '- ' + it.name + ': ' + (c.cnt > 0 ? c.ok + '/' + c.cnt + '일 이행' : '미입력');
       if (it.key === 'morningReady' && c.cnt > 0) {
@@ -1042,7 +1057,7 @@
         var r = records[ds];
         if (!r) return;
         var line = (d.getMonth() + 1) + '/' + d.getDate() + '(' + DAY_NAMES[d.getDay()] + ') ' +
-          dailyScore(r) + '/5';
+          dailyScore(r) + '/' + maxScore();
         var extra = [];
         if (typeof r.problemCount === 'number') extra.push('풀이 ' + r.problemCount);
         if (typeof r.wordCount === 'number') extra.push('암기 ' + r.wordCount);
@@ -1061,7 +1076,7 @@
     lines.push('기록 ' + dates.length + '일');
     lines.push('');
 
-    ITEMS.forEach(function (it) {
+    activeItems().forEach(function (it) {
       var c = judgedCount(dates, it.key);
       lines.push('- ' + it.name + ' 이행률: ' +
         (c.cnt > 0 ? Math.round(c.ok / c.cnt * 100) + '% (' + c.ok + '/' + c.cnt + ')' : '미입력'));
@@ -1115,11 +1130,16 @@
       return j === true ? '이행' : (j === false ? '미이행' : '미입력');
     }
 
-    var rows = [['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인', '풀이 문항 수', '암기 단어 수', '기상시각',
-                 '아침준비', '공기계 제출', '올림피아드 준비', '이행수(5개 기준)', '특이사항']];
+    var hasDev = hasItem('deviceSubmit');
+    var hasOly = hasItem('olympiadPrep');
+    var header = ['날짜', '요일', '기기사용시간(분)', '기기사용 판정', '국영수 확인', '풀이 문항 수', '암기 단어 수', '기상시각', '아침준비'];
+    if (hasDev) header.push('공기계 제출');
+    if (hasOly) header.push('올림피아드 준비');
+    header.push('이행수(' + maxScore() + '개 기준)', '특이사항');
+    var rows = [header];
     dates.forEach(function (d) {
       var r = records[d];
-      rows.push([
+      var row = [
         d,
         DAY_NAMES[parseDate(d).getDay()],
         typeof r.screenTime === 'number' ? r.screenTime : '',
@@ -1128,12 +1148,12 @@
         typeof r.problemCount === 'number' ? r.problemCount : '',
         typeof r.wordCount === 'number' ? r.wordCount : '',
         r.wakeTime || '',
-        judgeText(r, 'morningReady'),
-        r.deviceSubmit === true ? '제출' : (r.deviceSubmit === false ? '미제출' : '미입력'),
-        r.olympiadPrep === true ? '함' : (r.olympiadPrep === false ? '안 함' : '미입력'),
-        dailyScore(r) + '/5',
-        r.memo || ''
-      ]);
+        judgeText(r, 'morningReady')
+      ];
+      if (hasDev) row.push(r.deviceSubmit === true ? '제출' : (r.deviceSubmit === false ? '미제출' : '미입력'));
+      if (hasOly) row.push(r.olympiadPrep === true ? '함' : (r.olympiadPrep === false ? '안 함' : '미입력'));
+      row.push(dailyScore(r) + '/' + maxScore(), r.memo || '');
+      rows.push(row);
     });
 
     var csv = rows.map(function (row) { return row.map(csvCell).join(','); }).join('\r\n');
@@ -1148,6 +1168,12 @@
   });
 
   // ---------- 자녀 선택 ----------
+  // 선택된 자녀에게 없는 항목의 입력 필드를 숨김
+  function applyChildItems() {
+    document.getElementById('field-device').style.display = hasItem('deviceSubmit') ? '' : 'none';
+    document.getElementById('field-olympiad').style.display = hasItem('olympiadPrep') ? '' : 'none';
+  }
+
   function renderChildSwitch() {
     var box = document.getElementById('child-switch');
     box.innerHTML = '';
@@ -1162,6 +1188,7 @@
         saveSettings(settings);
         records = loadAll();
         renderChildSwitch();
+        applyChildItems();
         loadFormFor(elDate.value);
         renderWeek();
         renderAll();
@@ -1172,6 +1199,7 @@
 
   // 초기 렌더
   renderChildSwitch();
+  applyChildItems();
   renderWeek();
   renderAll();
 })();
