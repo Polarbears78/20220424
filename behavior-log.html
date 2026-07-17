@@ -461,6 +461,7 @@
       <div class="stat-line" id="week-stat"></div>
       <div class="copy-row">
         <button class="btn btn-sub btn-sm" id="btn-copy-week" style="width:auto">카톡용 요약 복사</button>
+        <button class="btn btn-sub btn-sm" id="btn-week-img" style="width:auto">이미지 저장</button>
         <span class="copy-msg" id="copy-msg-week"></span>
       </div>
     </div>
@@ -1374,6 +1375,196 @@
     });
     if (dates.length === 0) { alert('복사할 기록이 없습니다.'); return; }
     copyText(buildMonthText(dates), document.getElementById('copy-msg-month'));
+  });
+
+  // ---------- 주간 현황 이미지 저장 ----------
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawWeekImage() {
+    var days = [], dayStrs = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      days.push(d);
+      dayStrs.push(fmtDate(d));
+    }
+    var end = days[6];
+    var label = (weekStart.getMonth() + 1) + '/' + weekStart.getDate() + ' ~ ' +
+                (end.getMonth() + 1) + '/' + end.getDate();
+
+    // 표 데이터 구성 (화면과 동일한 규칙)
+    var rows = [];
+    activeItems().forEach(function (it) {
+      rows.push({ name: it.name, cells: dayStrs.map(function (ds) {
+        var j = judge(records[ds], it.key);
+        return j === true ? { t: '이행', c: 'ok' } : (j === false ? { t: '미이행', c: 'bad' } : { t: '－', c: 'none' });
+      }) });
+    });
+    COUNTS.forEach(function (ct) {
+      rows.push({ name: ct.name, cells: dayStrs.map(function (ds) {
+        var v = ct.get(records[ds]);
+        return typeof v === 'number' ? { t: String(v), c: 'num' } : { t: '－', c: 'none' };
+      }) });
+    });
+    rows.push({ name: '이행 개수', cells: dayStrs.map(function (ds) {
+      var rec = records[ds];
+      return rec ? { t: dailyScore(rec) + '/' + maxScore(), c: 'num' } : { t: '－', c: 'none' };
+    }) });
+
+    var morningOk = 0;
+    dayStrs.forEach(function (ds) { if (judge(records[ds], 'morningReady') === true) morningOk++; });
+    var met = morningOk >= 4;
+
+    var stSum = 0, stCnt = 0;
+    dayStrs.forEach(function (ds) {
+      var r = records[ds];
+      if (r && typeof r.screenTime === 'number') { stSum += r.screenTime; stCnt++; }
+    });
+    var prob = countSum(dayStrs, problemTotal);
+    var word = countSum(dayStrs, COUNTS[1].get);
+    var bd = subjectSumLine(dayStrs);
+
+    // 레이아웃
+    var S = 2; // 선명도용 배율
+    var pad = 24, nameW = 118, cellW = 56, rowH = 30, headH = 36;
+    var W = pad * 2 + nameW + cellW * 7;
+    var bannerY = 56, bannerH = 32;
+    var tableY = bannerY + bannerH + 14;
+    var tableH = headH + rowH * rows.length;
+    var statY = tableY + tableH + 22;
+    var H = statY + 40 + 26;
+
+    var cv = document.createElement('canvas');
+    cv.width = W * S;
+    cv.height = H * S;
+    var ctx = cv.getContext('2d');
+    ctx.scale(S, S);
+    var FONT = '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
+    var C = { accent: '#3b5b7c', accentSoft: '#e8eef4', text: '#2b3138', sub: '#6b7480',
+              line: '#dfe3e8', ok: '#2f7a4d', okBg: '#e6f2ea', bad: '#b0433a', badBg: '#f7e9e7', none: '#9aa1a9' };
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // 제목
+    ctx.fillStyle = C.accent;
+    ctx.font = '700 17px ' + FONT;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('생활 약속 기록 · ' + activeChild, pad, 32);
+    ctx.fillStyle = C.sub;
+    ctx.font = '400 13px ' + FONT;
+    ctx.textAlign = 'right';
+    ctx.fillText('주간 ' + label, W - pad, 32);
+    ctx.textAlign = 'left';
+
+    // 아침 준비 배너
+    ctx.fillStyle = met ? C.okBg : C.badBg;
+    roundRect(ctx, pad, bannerY, W - pad * 2, bannerH, 8);
+    ctx.fill();
+    ctx.strokeStyle = met ? '#bcd9c6' : '#e3c1bd';
+    ctx.stroke();
+    ctx.fillStyle = met ? C.ok : C.bad;
+    ctx.font = '600 13px ' + FONT;
+    ctx.fillText('아침 준비: 주 ' + morningOk + '일 이행 → ' +
+      (met ? '주간 기준 충족 (4일 이상)' : '주간 기준 미달 (4일 미만)'), pad + 12, bannerY + 21);
+
+    // 표: 머리글
+    var x0 = pad, today = todayStr();
+    ctx.fillStyle = C.accentSoft;
+    ctx.fillRect(x0, tableY, nameW + cellW * 7, headH);
+    ctx.font = '600 12px ' + FONT;
+    ctx.textAlign = 'center';
+    days.forEach(function (d, i) {
+      var cx = x0 + nameW + cellW * i + cellW / 2;
+      ctx.fillStyle = fmtDate(d) === today ? C.bad : C.accent;
+      ctx.fillText(DAY_NAMES[d.getDay()], cx, tableY + 15);
+      ctx.fillText((d.getMonth() + 1) + '/' + d.getDate(), cx, tableY + 30);
+    });
+
+    // 표: 본문
+    rows.forEach(function (row, ri) {
+      var y = tableY + headH + rowH * ri;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#fafbfc';
+      ctx.fillRect(x0, y, nameW, rowH);
+      ctx.fillStyle = C.text;
+      ctx.font = '600 12px ' + FONT;
+      ctx.fillText(row.name, x0 + 8, y + 19);
+      ctx.textAlign = 'center';
+      row.cells.forEach(function (cell, ci) {
+        var cx = x0 + nameW + cellW * ci;
+        if (cell.c === 'ok') { ctx.fillStyle = C.okBg; ctx.fillRect(cx, y, cellW, rowH); }
+        if (cell.c === 'bad') { ctx.fillStyle = C.badBg; ctx.fillRect(cx, y, cellW, rowH); }
+        ctx.fillStyle = cell.c === 'ok' ? C.ok : (cell.c === 'bad' ? C.bad : (cell.c === 'none' ? C.none : C.text));
+        ctx.font = (cell.c === 'num' ? '400' : '700') + ' 12px ' + FONT;
+        ctx.fillText(cell.t, cx + cellW / 2, y + 19);
+      });
+    });
+
+    // 표 격자선
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 1;
+    for (var r2 = 0; r2 <= rows.length + 1; r2++) {
+      var gy = tableY + (r2 === 0 ? 0 : headH + rowH * (r2 - 1));
+      ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x0 + nameW + cellW * 7, gy); ctx.stroke();
+    }
+    var gyEnd = tableY + tableH;
+    ctx.beginPath(); ctx.moveTo(x0, gyEnd); ctx.lineTo(x0 + nameW + cellW * 7, gyEnd); ctx.stroke();
+    for (var c2 = 0; c2 <= 8; c2++) {
+      var gx = x0 + (c2 === 0 ? 0 : nameW + cellW * (c2 - 1));
+      ctx.beginPath(); ctx.moveTo(gx, tableY); ctx.lineTo(gx, gyEnd); ctx.stroke();
+    }
+
+    // 하단 통계
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.text;
+    ctx.font = '400 13px ' + FONT;
+    ctx.fillText('주간 평균 사용시간: ' +
+      (stCnt > 0 ? fmtMinutes(Math.round(stSum / stCnt)) + ' (' + stCnt + '일 입력, 기준 ' + settings.screenLimit + '분)' : '입력 없음'),
+      pad, statY);
+    var studyLine = [];
+    if (prob.cnt > 0) studyLine.push('풀이 ' + prob.sum + '문항' + (bd ? ' (' + bd + ')' : ''));
+    if (word.cnt > 0) studyLine.push('암기 ' + word.sum + '개');
+    ctx.fillText('주간 학습량: ' + (studyLine.length ? studyLine.join(' · ') : '입력 없음'), pad, statY + 20);
+
+    ctx.fillStyle = C.none;
+    ctx.font = '400 11px ' + FONT;
+    ctx.fillText('생성일 ' + todayStr(), pad, H - 12);
+
+    return {
+      canvas: cv,
+      fileName: '생활약속_주간_' + activeChild + '_' + fmtDate(weekStart) + '.png'
+    };
+  }
+
+  document.getElementById('btn-week-img').addEventListener('click', function () {
+    var r = drawWeekImage();
+    var msgEl = document.getElementById('copy-msg-week');
+    r.canvas.toBlob(function (blob) {
+      if (!blob) {
+        msgEl.textContent = '이미지 생성에 실패했습니다.';
+        msgEl.style.color = 'var(--bad)';
+        return;
+      }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = r.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      msgEl.textContent = '이미지가 저장되었습니다.';
+      msgEl.style.color = 'var(--ok)';
+      setTimeout(function () { msgEl.textContent = ''; }, 3000);
+    }, 'image/png');
   });
 
   // ---------- CSV 다운로드 ----------
